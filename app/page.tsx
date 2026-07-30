@@ -1,65 +1,88 @@
-import Image from "next/image";
+import { en } from "@/content/en";
+import { LocaleSwitch } from "@/components/LocaleSwitch";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { Prose } from "@/components/Prose";
+import { LinkRow } from "@/components/LinkRow";
+import { SectionHeading } from "@/components/SectionHeading";
+import { ProjectRow } from "@/components/ProjectRow";
+import { TimelineItem } from "@/components/TimelineItem";
+import { Footer } from "@/components/Footer";
 
+// This whole page is a Server Component (no "use client" here, and none is
+// needed): every section below is either static markup or reads directly
+// from content/en.ts at build time. The only two spots that need the
+// browser — the theme toggle and the locale switch — are isolated into
+// their own small Client Components and dropped in as children, exactly
+// the "Layout is a Server Component with an interactive Search island"
+// pattern from the Next.js docs (node_modules/next/dist/docs/01-app/01-getting-started/05-server-and-client-components.md).
+// Because nothing here reads cookies(), headers(), searchParams, or uses
+// force-dynamic, `next build` can render this route once at build time
+// instead of on every request — that's what the "○ Static" marker in the
+// build output means.
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="mx-auto w-full max-w-[68ch] px-6 py-12 sm:px-8">
+      <div className="space-y-10">
+        {/* 1. Identity row */}
+        <div className="flex items-center justify-between">
+          <p className="font-medium text-text">{en.name}</p>
+          <div className="flex items-center gap-4">
+            <LocaleSwitch />
+            <ThemeToggle />
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        {/* 2. Positioning statement */}
+        <Prose>
+          {en.positioning.map((paragraph) => (
+            <p key={paragraph}>{paragraph}</p>
+          ))}
+        </Prose>
+
+        {/* 3. Contact row */}
+        <LinkRow items={en.contact} />
+
+        {/* 4. Selected work — differentiation before résumé, per
+            docs/plan.md section 3: "项目是差异化，经历是资历". */}
+        <section>
+          <SectionHeading>Selected Work</SectionHeading>
+          <div className="mt-4">
+            {en.work.map((project) => (
+              <ProjectRow key={project.name} project={project} />
+            ))}
+          </div>
+        </section>
+
+        {/* 5. Experience timeline */}
+        <section>
+          <SectionHeading>Experience</SectionHeading>
+          <div className="mt-4">
+            {en.experience.map((item) => (
+              <TimelineItem key={`${item.org}-${item.period}`} item={item} />
+            ))}
+          </div>
+        </section>
+
+        {/* 6. Education — three short rows, plain markup: docs/plan.md asks
+            for "3 lines", not enough structure to earn its own component. */}
+        <section>
+          <SectionHeading>Education</SectionHeading>
+          <div className="mt-4 space-y-3">
+            {en.education.map((item) => (
+              <p key={`${item.org}-${item.program}`} className="text-text">
+                <span className="font-medium">{item.org}</span>
+                <span className="text-text-muted"> — {item.program} </span>
+                <span className="font-mono text-xs text-text-muted">
+                  ({item.period})
+                </span>
+              </p>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {/* 7. Footer */}
+      <Footer footer={en.footer} />
+    </main>
   );
 }

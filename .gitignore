@@ -32,9 +32,17 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...but .env.example is a template with no secrets in it, and it's useful
+# for anyone (including future me) setting up the project from scratch.
+!.env.example
 
 # vercel
 .vercel
+
+# Claude Code: this is a per-session, auto-managed permission allowlist tied
+# to this machine, not project config — .claude/launch.json (the dev server
+# definition) is still committed, this file alone is excluded.
+.claude/settings.local.json
 
 # typescript
 *.tsbuildinfo

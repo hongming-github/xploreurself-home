@@ -1,26 +1,127 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens — docs/plan.md section 4.
+ *
+ * Why the raw values live on plain custom properties (--bg, --text, ...)
+ * instead of directly inside @theme: Tailwind's @theme block is normally
+ * resolved at BUILD time — great for a single fixed palette, useless for a
+ * value that has to change at RUNTIME when someone clicks the theme toggle.
+ * By keeping the actual colour values here, on :root, and only pointing
+ * Tailwind's theme at them with `var(...)` inside `@theme inline` (below),
+ * every `bg-bg` / `text-accent` / etc. utility Tailwind generates compiles
+ * down to `var(--bg)` rather than a hardcoded hex value. The browser then
+ * resolves that at paint time, using whichever block below last set it.
+ *
+ * Three blocks decide the colours, in increasing specificity:
+ *   1. :root                              → light, the default with no signal
+ *   2. @media (prefers-color-scheme:dark) → OS says dark, and no manual pick
+ *   3. :root[data-theme="light" | "dark"] → user's manual pick, wins outright
+ * (2) and (3) both target :root, but an attribute selector is more specific
+ * than a bare :root, so (3) always beats (2) regardless of source order —
+ * that's what makes the manual toggle able to override the OS in both
+ * directions (force light on a dark OS, or force dark on a light OS).
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --bg: #fcfcfd;
+  --bg-subtle: #f4f5f7;
+  --text: #17181c;
+  --text-muted: #6b6f76;
+  --border: #e4e5e9;
+  --accent: #2c5cc5;
+  --pos: #1f7a4c;
+  --neg: #a8382f;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --bg: #0e0f12;
+    --bg-subtle: #16181c;
+    --text: #e8e9ec;
+    --text-muted: #9a9ea6;
+    --border: #23252b;
+    --accent: #7ca0ee;
+    --pos: #4fb07c;
+    --neg: #e08078;
   }
 }
 
+:root[data-theme="light"] {
+  --bg: #fcfcfd;
+  --bg-subtle: #f4f5f7;
+  --text: #17181c;
+  --text-muted: #6b6f76;
+  --border: #e4e5e9;
+  --accent: #2c5cc5;
+  --pos: #1f7a4c;
+  --neg: #a8382f;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0e0f12;
+  --bg-subtle: #16181c;
+  --text: #e8e9ec;
+  --text-muted: #9a9ea6;
+  --border: #23252b;
+  --accent: #7ca0ee;
+  --pos: #4fb07c;
+  --neg: #e08078;
+}
+
+@theme inline {
+  /* Colour tokens. Tailwind turns each --color-X into bg-X / text-X /
+     border-X / etc. utilities automatically — this is the only place the
+     token names from docs/plan.md section 4 get wired to Tailwind. */
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+
+  /*
+   * Font stacks — docs/plan.md section 4.
+   *
+   * var(--font-geist-sans) / var(--font-geist-mono) are defined by
+   * next/font in app/layout.tsx (each font object writes its own CSS
+   * variable onto <html>). Geist ships with zero CJK glyphs, so without an
+   * explicit fallback chain, any Chinese character on the page would fall
+   * through to the browser's generic default — on most systems a serif
+   * font that looks completely out of place next to Geist. Listing the
+   * fallbacks directly on --font-sans (not on a separate "Chinese-only"
+   * rule) matters because the positioning paragraph mixes English and
+   * Chinese-context proper nouns in the same line — you can't cleanly
+   * scope a single paragraph to two different font-family rules.
+   */
+  --font-sans: var(--font-geist-sans), "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), "PingFang SC", ui-monospace, monospace;
+}
+
+/*
+ * Typography scale — docs/plan.md section 4.
+ * Body copy is 16px/1.65 on purpose: this is a text-heavy "documentation"
+ * page, not a marketing page, so generous line-height matters more than a
+ * dramatic type scale. Section headings get their distinction from
+ * lettering (mono, uppercase, tracked out), not from size — see
+ * components/SectionHeading.tsx.
+ */
+html {
+  font-size: 16px;
+}
+
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  line-height: 1.65;
+}
+
+/* One focus style, everywhere, in the single accent colour — no separate
+   focus treatment per component to keep in sync. */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }
