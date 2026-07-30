@@ -5,11 +5,16 @@
 //
 // docs/plan.md section 4: section titles get their "technical documentation"
 // feel from letter-spacing and case, not from a bigger font size — 13px
-// uppercase mono with tracked-out letters, in the muted colour so it reads
-// as metadata rather than a headline.
+// uppercase mono with tracked-out letters. That restraint in *size* is
+// correct and stays. Colour is a separate axis, though: these headings are
+// the page's only structural signposts ("where am I"), which makes them
+// substance, not metadata — so they get full `text` colour plus a medium
+// weight, the same distinction content/types.ts draws for `note` (metadata,
+// stays muted) versus everything else. `text-muted` is reserved for actual
+// metadata elsewhere on the page: dates, tag chips, the "Code private." note.
 export function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
-    <h2 className="font-mono text-[13px] uppercase tracking-[0.08em] text-text-muted">
+    <h2 className="font-mono text-[13px] font-medium uppercase tracking-[0.08em] text-text">
       {children}
     </h2>
   );

@@ -14,7 +14,11 @@ export function TimelineItem({ item }: { item: ExperienceItem }) {
         <span className="font-medium">{org}</span>
         <span className="text-text-muted"> · {role}</span>
       </p>
-      <p className="mt-1 text-text-muted">{description}</p>
+      {/* The role description is substance (what the job actually was), not
+          metadata — full `text` colour, same reasoning as ProjectRow's
+          description. Only the period above and the "· role" separator stay
+          muted, since those are genuinely metadata (a date, a label). */}
+      <p className="mt-1 text-text">{description}</p>
     </div>
   );
 }

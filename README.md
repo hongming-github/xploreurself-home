@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# xploreurself-home
 
-## Getting Started
+Source for [xploreurself.com](https://xploreurself.com) — a single-page personal
+site: a short bio, a list of projects with real before/after metrics, and a
+work history. Static, no backend, no database.
 
-First, run the development server:
+## Stack
+
+- [Next.js](https://nextjs.org) 16 (App Router, Turbopack, React 19)
+- [Tailwind CSS](https://tailwindcss.com) 4, design tokens defined in
+  `app/globals.css` via `@theme`
+- TypeScript throughout
+- [lucide-react](https://lucide.dev) for icons
+
+The whole page is statically prerendered at build time (`next build` emits
+`/` as a static route) — there's no server-side rendering per request, and
+no client-side data fetching. The only client-side JavaScript is three small
+islands (theme toggle, locale switch, and the sticky nav's active-section
+tracking) that need the browser for state a server render can't have.
+
+## Running locally
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then open `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+`npm run build` produces the production build; `npm run lint` runs ESLint.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Content
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Page copy lives in `content/en.ts` (and eventually `content/zh.ts` for a
+Chinese version), typed against `content/types.ts` — not inline in the JSX.
+Components in `components/` read that data and render it; they don't contain
+copy themselves. This keeps the two concerns — what the page says, and how
+it's laid out — separate, and makes a future translation a data change
+rather than a rewrite of every component.

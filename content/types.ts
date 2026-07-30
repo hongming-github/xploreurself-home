@@ -68,6 +68,14 @@ export interface SiteContent {
   /** Each string is one paragraph of the positioning statement. */
   positioning: string[];
   contact: LinkItem[];
+  /** Short labels for the sticky nav's section anchors — kept in content,
+   *  like everything else on the page, so phase P3's content/zh.ts can
+   *  translate them without touching component code. */
+  nav: {
+    work: string;
+    experience: string;
+    education: string;
+  };
   work: Project[];
   experience: ExperienceItem[];
   education: EducationItem[];

@@ -52,6 +52,12 @@ export const en: SiteContent = {
     { label: "Resume", href: "/resume.pdf" },
   ],
 
+  nav: {
+    work: "Work",
+    experience: "Experience",
+    education: "Education",
+  },
+
   work: [
     {
       name: "redblue",
