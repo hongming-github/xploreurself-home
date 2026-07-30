@@ -66,6 +66,7 @@ export const en: SiteContent = {
           sentiment: "neg",
         },
       ],
+      tags: ["Python", "LangGraph"],
       // Deep dive is P4; GitHub repo isn't public yet (see file-level comment).
       links: [],
     },
@@ -117,7 +118,10 @@ export const en: SiteContent = {
         "Weekend dinner decisions for two people. My first TypeScript project — built to learn Next.js.",
       metrics: [],
       tags: ["Next.js", "TypeScript"],
-      links: [],
+      // The only project here with a live URL. Verified reachable during
+      // review: https://eat.xploreurself.com 307s to /login (it's behind a
+      // password) and that page returns 200 — the service is up.
+      links: [{ label: "Live", href: "https://eat.xploreurself.com" }],
       note: "Code private.",
     },
   ],
