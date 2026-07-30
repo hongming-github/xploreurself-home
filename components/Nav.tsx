@@ -61,15 +61,28 @@ export function Nav({ items }: { items: NavItem[] }) {
         return;
       }
 
-      // Threshold line: just below the sticky bar. Read the bar's own
-      // rendered height live (via getBoundingClientRect) rather than
-      // hardcode it, since it can change with viewport width (the labels
-      // wrap or the gap changes at the `sm:` breakpoint) — a magic-number
-      // threshold would drift out of sync with the actual bar. The +8px
-      // buffer means a section has to clear the bar with a little room to
-      // spare before it's considered "under" it, rather than flipping the
-      // instant its heading is merely level with the bar's bottom edge.
-      const threshold = nav.getBoundingClientRect().height + 8;
+      // Threshold line: about a third of the way down the viewport, not
+      // "just below the sticky bar". The question this line answers is
+      // "which section is the reader looking at", and a section can fill
+      // nearly the whole screen while its heading is still well below the
+      // bar — anchoring the line to the bar's height (the previous
+      // approach) meant that section stayed unhighlighted right up until
+      // its top edge scrolled past a ~55px strip, so the *previous*
+      // section's link stayed lit while the reader looked at a screen that
+      // was 98% the next one. One third of `window.innerHeight` is the
+      // conventional scrollspy choice: it's low enough that a section
+      // "arriving" under the bar counts as arrived, without waiting for it
+      // to dominate the entire screen first. It's derived from
+      // `innerHeight` rather than a fixed pixel count so it scales with the
+      // viewport instead of meaning something different on a phone than on
+      // a monitor. `Math.max` keeps a floor of the bar's own height plus an
+      // 8px buffer, purely so the line can never end up above the bar
+      // itself on an unusually short viewport — below that floor there'd be
+      // no "under the bar" left to detect.
+      const threshold = Math.max(
+        nav.getBoundingClientRect().height + 8,
+        window.innerHeight / 3,
+      );
 
       // A section becomes active once its top edge has scrolled up past the
       // threshold. Sections are laid out in document order (work, then
