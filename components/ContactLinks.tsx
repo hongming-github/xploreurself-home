@@ -1,7 +1,22 @@
-import { Fragment } from "react";
-import { Code, Contact, Mail } from "lucide-react";
+import { Fragment, type ComponentType } from "react";
+import { Mail } from "lucide-react";
+import { GithubIcon, LinkedinIcon } from "@/components/BrandIcons";
 import type { ContactIconKey } from "@/content/facts";
 import type { ContactItem } from "@/content/types";
+
+// The three icon sources don't share an exact type: lucide's Mail is a
+// ForwardRefExoticComponent (it supports ref forwarding); GithubIcon and
+// LinkedinIcon are plain function components (they don't need a ref, so
+// components/BrandIcons.tsx doesn't add forwardRef machinery that would
+// exist only to satisfy this Record's type). Both shapes are still
+// ordinary React components callable as `<Icon ... />`, so the Record
+// below is typed against just the props this file actually passes at the
+// call site, not against either library's full component type.
+type ContactIcon = ComponentType<{
+  size?: number;
+  className?: string;
+  "aria-hidden"?: boolean | "true" | "false";
+}>;
 
 // The contact block (2026-07-31 decision): three literal values — email,
 // GitHub, LinkedIn — always stacked one per line, in every viewport. That's
@@ -25,26 +40,19 @@ import type { ContactItem } from "@/content/types";
 
 // content/facts.ts stores which icon a row gets as a plain string key, not
 // a component reference, so that file stays free of a React import. This
-// map is the one place that name gets turned into an actual lucide-react
+// map is the one place that name gets turned into an actual icon
 // component — the same "name in data, component at the render edge" split
 // ThemeToggle.tsx uses for its OPTIONS array.
 //
-// Deviation from the brief, verified against the installed package rather
-// than assumed: this lucide-react version does not export `Github` or
-// `Linkedin` — `tsc` reports "has no exported member" for both, and neither
-// name appears anywhere under node_modules/lucide-react/dist/esm/icons/.
-// Brand/logo glyphs aren't in this icon set at all (there's no GitHub,
-// Twitter, etc. of any spelling); ThemeToggle.tsx's existing import
-// (Moon/Sun/SunMoon) never exercised that gap because none of those are
-// brand marks. Since these icons are already `aria-hidden` wayfinding
-// aids, not identity claims, `Code` (source code / repository) and
-// `Contact` (a person's profile card) are close enough in meaning to do
-// the same job with an icon that actually exists — no new dependency
-// added to reach for a brand-icon package instead.
-const ICONS: Record<ContactIconKey, typeof Mail> = {
+// Mail comes from lucide-react (email has no brand — a generic envelope
+// is correct); Github/Linkedin come from components/BrandIcons.tsx, hand
+// inlined SVGs, NOT a lucide swap-back candidate — see that file's header
+// comment for why lucide has no brand glyphs to import in the first place
+// (verified against the installed package, not assumed).
+const ICONS: Record<ContactIconKey, ContactIcon> = {
   mail: Mail,
-  github: Code,
-  linkedin: Contact,
+  github: GithubIcon,
+  linkedin: LinkedinIcon,
 };
 
 // 2026-07-31 addition: a small icon ahead of each value, purely as a
