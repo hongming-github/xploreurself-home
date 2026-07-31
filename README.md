@@ -31,9 +31,13 @@ Then open `http://localhost:3000`.
 
 ## Content
 
-Page copy lives in `content/en.ts` (and eventually `content/zh.ts` for a
-Chinese version), typed against `content/types.ts` — not inline in the JSX.
-Components in `components/` read that data and render it; they don't contain
-copy themselves. This keeps the two concerns — what the page says, and how
-it's laid out — separate, and makes a future translation a data change
-rather than a rewrite of every component.
+Page copy lives in `content/en.ts` and `content/zh.ts`, typed against
+`content/types.ts` — not inline in the JSX. Components in `components/` read that
+data and render it; they don't contain copy themselves. This keeps the two
+concerns — what the page says, and how it's laid out — separate, and makes a
+translation a data change rather than a rewrite of every component.
+
+Long-form write-ups are MDX under `content/work/`, rendered at `/en/work/<slug>`.
+
+See [OPERATIONS.md](OPERATIONS.md) for how to edit an article, add a new one, or
+add a project — including the MDX gotchas that fail in non-obvious ways.
