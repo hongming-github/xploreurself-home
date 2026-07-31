@@ -86,7 +86,12 @@ export interface ProjectFact {
 
 export const PROJECT_FACTS: Record<ProjectId, ProjectFact> = {
   redblue: {
-    name: "redblue",
+    // Display names are product names, not repo names — the five cards used
+    // to mix both conventions, which read as arbitrary rather than as a
+    // choice. The repo name still appears in the write-up's prose (in mono,
+    // where a package name belongs) and will appear again on the GitHub
+    // link once this repo goes public.
+    name: "Adversarial Robustness Harness",
     metrics: [
       { key: "asr3", from: "20%", value: "0%", sentiment: "pos" },
       {
@@ -108,7 +113,9 @@ export const PROJECT_FACTS: Record<ProjectId, ProjectFact> = {
     links: [{ kind: "translated", key: "article", href: "/en/work/redblue" }],
   },
   jobagent: {
-    name: "jobagent",
+    // Matches how this project is named on the CV, so a reader holding both
+    // doesn't have to work out that they're the same thing.
+    name: "Job Hunt Agent",
     metrics: [
       { key: "outputTokens", value: "−61%", sentiment: "pos" },
       {
@@ -137,7 +144,9 @@ export const PROJECT_FACTS: Record<ProjectId, ProjectFact> = {
     ],
   },
   "ai-usage": {
-    name: "ai-usage",
+    // The repo's own README titles it "AI Usage" — this is its name, not a
+    // prettified version of the repo slug.
+    name: "AI Usage",
     metrics: [],
     tags: ["macOS"],
     links: [
