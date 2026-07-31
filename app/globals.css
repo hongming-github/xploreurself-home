@@ -148,3 +148,26 @@ body {
   text-transform: none;
   font-family: var(--font-sans);
 }
+
+/*
+ * View Transitions (phase P4): a homepage project row's name morphs into
+ * its article's <h1> — see the matching `<ViewTransition name="project-
+ * ...">` pair in components/ProjectRow.tsx and app/[locale]/work/[slug]/
+ * page.tsx. Respecting `prefers-reduced-motion` has to live here, in plain
+ * CSS, rather than as a React prop: the Next.js view transitions guide's
+ * own reduced-motion example (node_modules/next/dist/docs/01-app/02-guides/
+ * view-transitions.md) does it exactly this way, by zeroing every
+ * view-transition pseudo-element's animation rather than trying to
+ * intercept the transition in JS. Without any `enter`/`exit`/`share`
+ * customisation on the ViewTransition itself (deliberate — docs/plan.md P4
+ * asks for this to stay subtle), the browser's un-animated default is a
+ * plain content swap, which is what this media query falls back to.
+ */
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(*),
+  ::view-transition-new(*),
+  ::view-transition-group(*) {
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+  }
+}

@@ -142,6 +142,15 @@ export interface ContactItem {
 }
 
 export interface Project {
+  /** Phase P4 addition: components/ProjectRow.tsx needs a stable identity
+   *  (not just `name`, which for e.g. "AI Detective" doesn't round-trip to
+   *  anything) to name the View Transition it shares with a matching
+   *  article <h1> — see content/facts.ts's PROJECT_FACTS for where this
+   *  comes from. Also replaces `name` as the React `key` in
+   *  app/[locale]/page.tsx's project list, which was always the more
+   *  correct choice (project names are prose that could theoretically
+   *  collide; ids can't). */
+  id: ProjectId;
   name: string;
   description: string;
   metrics: Metric[];

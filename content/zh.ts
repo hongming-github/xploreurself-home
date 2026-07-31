@@ -41,15 +41,28 @@ export const zh: SiteContent = {
     contact: "联系方式",
   },
 
-  // Only "live" is left here — see content/facts.ts's LinkKey comment.
+  // "live" and "article" are left here — see content/facts.ts's LinkKey
+  // comment. `article`'s value is not a translation exercise: it has to
+  // both read as Chinese *and* carry the literal word "English" so a
+  // reader knows, before clicking, that the deep-dive page on the other
+  // end of this link is not in Chinese (docs/plan.md section 3's explicit
+  // requirement — the two /en/work/... routes have no /zh counterpart, see
+  // content/facts.ts's PROJECT_FACTS, so this is the one place that gets
+  // disclosed instead of silently switching languages on click).
   linkLabels: {
     live: "线上",
+    article: "深度长文（English）",
   },
 
+  // asr3 and benignFalseRefusal carry their sample sizes as of 2026-07-31
+  // — see content/en.ts's matching comment for why. `(n=5)` / `(n=10)` are
+  // left as Latin digits and parentheses in both locales, same treatment
+  // as `ASR@3` itself just below (a technical annotation, not prose to
+  // translate).
   metricLabels: {
     // Technical term, left unchanged per the brief.
-    asr3: "ASR@3",
-    benignFalseRefusal: "良性请求误拒率",
+    asr3: "ASR@3 (n=5)",
+    benignFalseRefusal: "良性请求误拒率 (n=10)",
     outputTokens: "输出 token",
     promptCacheHit: "prompt 缓存命中率",
     decoysRejected: "诱饵剔除",

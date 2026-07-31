@@ -163,7 +163,7 @@ export default async function Home({
             <SectionHeading>{content.sections.work}</SectionHeading>
             <div className="mt-4">
               {projects.map((project) => (
-                <ProjectRow key={project.name} project={project} />
+                <ProjectRow key={project.id} project={project} />
               ))}
             </div>
           </section>

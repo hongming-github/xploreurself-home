@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import createMDX from "@next/mdx";
 
 // Security response headers. docs/plan.md P6.5 has the audit behind this:
 // zero API routes, zero Server Actions, zero forms, zero `process.env`
@@ -73,6 +74,26 @@ const securityHeaders = [
 // nothing over what the platform already guarantees — so the correct move
 // is to leave it alone, not to duplicate it "for completeness."
 const nextConfig: NextConfig = {
+  // @next/mdx only compiles files ending in .mdx by default — this project
+  // has no plain .md files, so unlike the Next.js MDX guide's own example
+  // (node_modules/next/dist/docs/01-app/02-guides/mdx.md) this list omits
+  // "md" rather than including a format nothing here uses. The other four
+  // extensions are Next's own default `pageExtensions`; this array
+  // *replaces* that default rather than adding to it, so they have to be
+  // repeated here or .ts/.tsx pages would stop being recognised as pages
+  // at all.
+  pageExtensions: ["js", "jsx", "ts", "tsx", "mdx"],
+  experimental: {
+    // Enables Next's integration with React's <ViewTransition> component
+    // (see components/ProjectRow.tsx and app/[locale]/work/[slug]/page.tsx
+    // for the one pair this project uses it on) — node_modules/next/dist/
+    // docs/01-app/03-api-reference/05-config/01-next-config-js/
+    // viewTransition.md. React ships the component itself; this flag is
+    // what makes a route navigation through next/link automatically count
+    // as a transition, rather than only firing inside a manual
+    // useTransition call.
+    viewTransition: true,
+  },
   async headers() {
     return [
       {
@@ -86,4 +107,29 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// remark-gfm is the one plugin added on top of bare @next/mdx, and it's
+// load-bearing, not decorative: pipe tables (`| a | b |`) are a GitHub
+// Flavored Markdown extension, not part of CommonMark, and @mdx-js/mdx's
+// default parser only understands CommonMark. Verified the hard way —
+// without this plugin, content/work/redblue.mdx's "Both readings" table
+// rendered as one literal-pipe-characters paragraph, not a <table> at all,
+// which is a broken implementation of the P4 brief's explicit "Prose must
+// handle tables" requirement, not a stylistic gap. Fenced code blocks don't
+// need it (those are plain CommonMark already, no GFM extension involved) —
+// this plugin exists for the tables alone. No other remark/rehype plugin is
+// added (no syntax highlighter, no table of contents, ...).
+//
+// Passed as the string "remark-gfm", not the imported function — Turbopack
+// (this project's bundler; see AGENTS.md) can't serialize a plugin function
+// reference across the Rust/JS boundary, and errors at build time
+// ("does not have serializable options") if you try. The Next.js MDX guide
+// covers this exact case (node_modules/next/dist/docs/01-app/02-guides/
+// mdx.md, "Using Plugins with Turbopack"): a string module specifier lets
+// Turbopack resolve the plugin by name on its own side instead.
+const withMDX = createMDX({
+  options: {
+    remarkPlugins: ["remark-gfm"],
+  },
+});
+
+export default withMDX(nextConfig);

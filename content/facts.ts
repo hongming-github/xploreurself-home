@@ -49,10 +49,17 @@ export interface MetricFact {
  * has the same property (identical in content/en.ts and content/zh.ts
  * today), so it's inlined as a literal string in PROJECT_FACTS instead of
  * routed through a translation table for a translation that never
- * actually varies. "live" is the one kind left that's genuine prose
- * ("Live" / "线上"), so it's the only member left in this union.
+ * actually varies. "live" is genuine prose ("Live" / "线上").
+ *
+ * "article" (added phase P4) is the odd one out: the *href* is
+ * locale-independent (redblue and jobagent's deep-dive pages are English
+ * only — docs/plan.md decision 4 — so /zh's card links to the exact same
+ * /en/work/... URL /en's card does), but the *label* still needs to differ,
+ * because /zh's version has to double as the "this is English" disclosure
+ * docs/plan.md section 3 requires — see content/zh.ts's linkLabels.article
+ * for where that's spelled out.
  */
-export type LinkKey = "live";
+export type LinkKey = "live" | "article";
 
 /**
  * A per-project link. Two shapes, matched by `kind`:
@@ -90,8 +97,15 @@ export const PROJECT_FACTS: Record<ProjectId, ProjectFact> = {
       },
     ],
     tags: ["Python", "LangGraph"],
-    // Deep dive is P4; GitHub repo isn't public yet (see content/en.ts).
-    links: [],
+    // GitHub repo isn't public yet (see content/en.ts) — that's still
+    // phase P7, unaffected by P4. The deep-dive article now exists, so it
+    // gets the one link that does. A root-relative href (not
+    // https://xploreurself.com/...) is deliberate: components/LinkRow.tsx
+    // treats a leading "/" as "this site's own route" and renders it with
+    // next/link instead of a plain <a>, which is what lets the View
+    // Transition to this article's <h1> (see components/ProjectRow.tsx)
+    // fire at all — a full-page <a> navigation never triggers one.
+    links: [{ kind: "translated", key: "article", href: "/en/work/redblue" }],
   },
   jobagent: {
     name: "jobagent",
@@ -105,7 +119,10 @@ export const PROJECT_FACTS: Record<ProjectId, ProjectFact> = {
       },
     ],
     tags: ["LangGraph"],
-    links: [],
+    // Code stays private (see the "Code private." note in content/en.ts /
+    // content/zh.ts) — that doesn't change with P4. Same root-relative
+    // article link as redblue above.
+    links: [{ kind: "translated", key: "article", href: "/en/work/jobagent" }],
   },
   "ai-detective": {
     name: "AI Detective",

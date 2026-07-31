@@ -45,6 +45,7 @@ export function buildProjects(content: SiteContent): Project[] {
     const fact = PROJECT_FACTS[id];
     const copy = content.work[id];
     return {
+      id,
       name: fact.name,
       description: copy.description,
       metrics: fact.metrics.map((metric) => ({

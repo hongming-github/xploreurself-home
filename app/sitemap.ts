@@ -1,20 +1,15 @@
 import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/content/facts";
 import { LOCALES } from "@/content/ids";
+import { WORK_SLUGS } from "@/content/articles";
 
-// Only the two locale homepages exist right now. The deep-dive routes
-// (/en/work/redblue, /en/work/jobagent) are phase P4 — not built yet — so
-// listing them here would be exactly the placeholder-entry docs/plan.md's
-// decision 5 rules out: a URL in the sitemap that 404s is worse for SEO
-// than not mentioning it at all. Add them to this array when P4 ships.
-//
-// One `lastModified` shared by both entries (computed once, not
-// `new Date()` written out twice) so the two URLs don't report two
-// different build timestamps for what was actually the same build.
+// One `lastModified` shared by every entry (computed once, not `new Date()`
+// written out per URL) so none of them report a different build timestamp
+// for what was actually the same build.
 export default function sitemap(): MetadataRoute.Sitemap {
   const lastModified = new Date();
 
-  return LOCALES.map((locale) => ({
+  const localeEntries: MetadataRoute.Sitemap = LOCALES.map((locale) => ({
     url: `${SITE_URL}/${locale}`,
     lastModified,
     // Mirrors the hreflang set in app/[locale]/layout.tsx's
@@ -29,4 +24,17 @@ export default function sitemap(): MetadataRoute.Sitemap {
       },
     },
   }));
+
+  // The two P4 deep-dive articles. No `alternates.languages` here — unlike
+  // the locale entries above, these URLs have no /zh counterpart to be a
+  // translation of (docs/plan.md decision 4), so adding that field would
+  // assert something false to search engines rather than omit something
+  // neutral. This is the "add both article URLs" follow-up docs/plan.md's
+  // P4 entry noted was left for this phase.
+  const articleEntries: MetadataRoute.Sitemap = WORK_SLUGS.map((slug) => ({
+    url: `${SITE_URL}/en/work/${slug}`,
+    lastModified,
+  }));
+
+  return [...localeEntries, ...articleEntries];
 }

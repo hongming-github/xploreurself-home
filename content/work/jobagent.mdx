@@ -1,0 +1,114 @@
+export const frontmatter = {
+  // Frontmatter as a plain JS export, not YAML `---` -- see the matching
+  // comment inside content/work/redblue.mdx's frontmatter block for why,
+  // including why this comment has to live *inside* the block rather than
+  // above the `export` line.
+  title: "Over-engineered on purpose",
+  project: "jobagent",
+  summary:
+    "A single-user job-hunting pipeline built to production shape. The over-engineering paid for itself exactly once — diagnosing a cache bug that was invisible without it.",
+  date: "2026-07-27",
+};
+
+`jobagent` scores roughly two thousand job listings a day against my résumé and pushes the
+ranked matches to a Telegram bot. It has one user. It runs on one machine, on a nightly
+cron, in Docker.
+
+It also has a strictly layered architecture, a provider-agnostic LLM boundary, a golden-set
+evaluation harness, and per-batch cost logging. That is far more structure than the
+workload needs, and it was deliberate: the point was to practise production-shaped
+engineering on something I actually cared about, rather than on a toy.
+
+Over-engineering is easy to defend in the abstract and hard to defend with evidence. So
+here is the one time it clearly paid for itself.
+
+## The symptom
+
+OpenAI's prompt caching is supposed to make a repeated prompt prefix cheap. Mine behaved
+like a coin flip. A test script that fired identical-prefix calls about a second apart got
+a **91%** hit rate. The production matcher, sending what should have been the same prefix a
+few seconds apart, got **0%**.
+
+Same bytes. Wildly different results. That combination — correct-looking input,
+non-deterministic output — is the shape of a bug that lives underneath your code rather
+than inside it.
+
+## The cause
+
+Cache lookup is not global. Requests are fanned across many shards behind a load balancer,
+and each shard has its own local cache memory. Identical prefix bytes do not guarantee you
+land on the shard that has seen them. The tight loop in the test script kept hitting the
+same connection and therefore the same shard; production traffic, spaced out, did not.
+
+The fix is a routing hint. OpenAI accepts a `prompt_cache_key` on the request, which biases
+the balancer toward a consistent shard for that key. Setting it made the cache sticky.
+
+| Arm | Config | Warm hit rate |
+| --- | --- | --- |
+| A | no key | **47.7%**, unpredictable |
+| B | `prompt_cache_key="jobagent:matcher"` | **95.4%**, stable |
+
+One design decision inside the fix I would defend in a review: the keys are **per worker**
+(`jobagent:matcher`, `jobagent:writer`, `jobagent:feedback`), not one shared key for the
+application. Different workers send different prefixes. Giving them the same key aims them
+at the same shard's cache slot, where they would evict each other — the fix would have
+partially undone itself.
+
+## What the fix is actually worth
+
+Here is the part that usually gets left out.
+
+In production, each nightly batch scores **different** jobs. The cacheable region is only
+the static prefix — the system prompt and my résumé, around 1,024 tokens out of roughly
+5,500 per batch. So the real hit rate on a warm batch is about **18%**, and the saving is
+around **$0.15 a month**.
+
+That is the honest number. `95.4%` is a true measurement of a controlled A/B, and it is
+also not what the system experiences.
+
+I would still do it again, for a reason that has nothing to do with the fifteen cents: the
+hit rate is now a **knob I control and can see**, instead of a coin flip I was at the mercy
+of. Before, an unexplained cost regression had a suspect I could neither confirm nor rule
+out. That is worth more than the money at this scale, and at a scale where the money
+mattered, the diagnosis would already be done.
+
+## Why the over-engineering was the enabling condition
+
+None of the above is visible without instrumentation that predates the bug. Every matcher
+batch logs its own economics:
+
+```text
+matcher.batch  batch=3 size=8 input=5011 cache_read=1024 hit_pct=20.4 output=478
+matcher.done   batches=17 tok_in=85K tok_cached=15K cache_hit_pct=17.6 cost_usd=0.048
+```
+
+`hit_pct` being in that line is the whole reason there was something to notice. Cost is
+computed inline from list pricing rather than deferred to a dashboard, so a regression is
+visible the next morning without anyone deciding to go look.
+
+The layering mattered too, in a smaller way. Threading a per-worker cache key through the
+system touched exactly one function, because provider access was already behind a single
+`get_llm(temperature=None, cache_key=None)` boundary. Had the OpenAI client been
+constructed at each call site, the experiment would have been a refactor first, and I
+probably would not have bothered running it.
+
+## A second, less flattering example
+
+The same project taught me that instrumentation you do not look at is not instrumentation.
+
+The Telegram bot spent **nine days** in a retry loop after DNS resolution died inside its
+container. Docker reported the container as `Up 9 days` the entire time. I found it by
+accident while investigating something unrelated. The logs had been saying
+`NetworkError: Name or service not known` since day one.
+
+A liveness signal that reports the process is running, rather than that the process is
+doing its job, is a signal that will eventually lie to you. The fix — a heartbeat the bot
+sends to itself, with a missing heartbeat as the alarm — is still on the list.
+
+## The honest summary
+
+The layering, the eval harness, and the cost logging were over-engineering for a
+single-user workload. Most of it has not paid off and may never. One piece of it turned an
+unexplainable intermittent behaviour into a diagnosis and a fix, and I would not have got
+there without the instrumentation being in place beforehand — which is, unhelpfully, the
+one thing you cannot add retroactively.

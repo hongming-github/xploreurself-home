@@ -6,19 +6,18 @@ import type { SiteContent } from "./types";
 // and URLs that live outside this file because they don't change by locale.
 //
 // A note on missing links (decision 5 in docs/plan.md: ship an honest v1,
-// never a placeholder link or "coming soon" text). Two kinds of links are
-// deliberately left out of this phase rather than guessed at:
+// never a placeholder link or "coming soon" text). One is still
+// deliberately left out as of phase P4:
 //
-//   1. Deep-dive pages (redblue, jobagent) — the MDX routes don't exist
-//      until phase P4. No href would go anywhere.
-//   2. redblue's GitHub link — checked with `gh repo list` while writing
-//      this: the repo isn't public yet. docs/plan.md's own delivery plan
-//      (phase P7) adds this link only *after* the repo goes public, which
-//      happens after the homepage ships. Linking to it now would 404.
+//   redblue's GitHub link — checked with `gh repo list` while writing this:
+//   the repo isn't public yet. docs/plan.md's own delivery plan (phase P7)
+//   adds this link only *after* the repo goes public, which happens after
+//   the homepage ships. Linking to it now would 404.
 //
-// GitHub links for AI Detective and ai-usage below ARE real (see
-// content/facts.ts). "What to Eat" (eat)'s repo is private, hence the
-// "Code private." note instead of a GitHub link.
+// redblue and jobagent's deep-dive pages (content/work/*.mdx) DO exist now
+// — see content/facts.ts's PROJECT_FACTS for their links. GitHub links for
+// AI Detective and ai-usage below are also real. "What to Eat" (eat)'s repo
+// is private, hence the "Code private." note instead of a GitHub link.
 export const en: SiteContent = {
   meta: {
     title: "Hongming Zhao — AI Engineer, Singapore",
@@ -46,16 +45,25 @@ export const en: SiteContent = {
     contact: "Contact",
   },
 
-  // Only "live" is left here — see content/facts.ts's LinkKey comment for
-  // why the contact row and the GitHub project links no longer go through
-  // a translated label at all.
+  // "live" and "article" are what's left here — see content/facts.ts's
+  // LinkKey comment for why the contact row and the GitHub project links no
+  // longer go through a translated label at all.
   linkLabels: {
     live: "Live",
+    article: "Read the write-up",
   },
 
+  // asr3 and benignFalseRefusal carry their sample sizes as of 2026-07-31
+  // (docs/plan.md P4: "the card's metric labels disclose their sample
+  // size"). The numbers themselves (content/facts.ts's PROJECT_FACTS) are
+  // unchanged — 20% → 0% is still one behaviour out of five, 10% → 30% is
+  // still one benign prompt out of ten refused becoming three — this just
+  // makes that countable smallness visible on the card instead of only in
+  // the article, so a reader who reads both never finds the card
+  // overstating what the article is honest about.
   metricLabels: {
-    asr3: "ASR@3",
-    benignFalseRefusal: "benign false refusal",
+    asr3: "ASR@3 (n=5)",
+    benignFalseRefusal: "benign false refusal (n=10)",
     outputTokens: "output tokens",
     promptCacheHit: "prompt cache hit",
     decoysRejected: "decoys rejected",
