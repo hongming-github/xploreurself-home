@@ -116,3 +116,17 @@ export function buildFooter(content: SiteContent): FooterView {
     sourceHref: FOOTER_SOURCE_HREF,
   };
 }
+
+// For the JSON-LD Person block (app/[locale]/page.tsx): schema.org's
+// `sameAs` wants "other places on the web that identify this same person",
+// which is GitHub and LinkedIn but not the mailto: link — an email address
+// isn't a profile page. Filtering CONTACT_LINKS by icon rather than storing
+// a second, separate list keeps there being exactly one place (facts.ts's
+// CONTACT_LINKS) that spells out these two URLs; a hand-copied second list
+// is exactly the kind of two-sources-of-truth setup this module's header
+// comment already warns against for metrics and links.
+export function personSameAs(): string[] {
+  return CONTACT_LINKS.filter(
+    (link) => link.icon === "github" || link.icon === "linkedin",
+  ).map((link) => link.href);
+}

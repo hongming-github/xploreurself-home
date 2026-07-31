@@ -259,3 +259,19 @@ export const CONTACT_LINKS: ContactLink[] = [
 // happens; that's a deployment-sequencing detail outside this phase.
 export const FOOTER_SOURCE_HREF =
   "https://github.com/hongming-github/xploreurself-home";
+
+/**
+ * The apex domain this site deploys to. A `string`, not a `URL` object,
+ * because most of its call sites (robots.txt's `Sitemap:` line, sitemap.xml
+ * entries, the `alt` text on the OG images) just want it interpolated into
+ * another string — the one call site that wants a `URL` instance
+ * (`metadataBase` in app/[locale]/layout.tsx) does `new URL(SITE_URL)`
+ * itself rather than forcing every other caller to `.toString()` a URL
+ * object back down. Written once here, the same reason every other
+ * locale-independent fact in this file is written once here: `robots.ts`,
+ * `sitemap.ts`, `layout.tsx`'s metadata, and both locales'
+ * `opengraph-image.tsx` all need this same string, and a domain typed out
+ * five separate times is five chances for one of them to drift if the site
+ * ever moves.
+ */
+export const SITE_URL = "https://xploreurself.com";

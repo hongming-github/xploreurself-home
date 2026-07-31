@@ -2,12 +2,14 @@ import { en } from "@/content/en";
 import { zh } from "@/content/zh";
 import type { Locale } from "@/content/ids";
 import type { SiteContent } from "@/content/types";
+import { SITE_URL } from "@/content/facts";
 import {
   buildContact,
   buildEducation,
   buildExperience,
   buildFooter,
   buildProjects,
+  personSameAs,
 } from "@/content/site";
 import { Nav } from "@/components/Nav";
 import { Prose } from "@/components/Prose";
@@ -32,6 +34,17 @@ import { Footer } from "@/components/Footer";
 // them twice for the same segment would just be two sources of truth for
 // one answer.
 const CONTENT: Record<Locale, SiteContent> = { en, zh };
+
+// Two-word label for the JSON-LD Person block below — not new copy being
+// invented for this phase: this exact phrase already appears inside
+// content.meta.title for each locale ("... — AI Engineer, Singapore" /
+// "... — AI 工程师，新加坡"). It's kept as its own small literal here rather
+// than string-parsing meta.title apart, which would silently break if that
+// title's punctuation ever changes shape.
+const JOB_TITLE: Record<Locale, string> = {
+  en: "AI Engineer",
+  zh: "AI 工程师",
+};
 
 // `params` is typed with `locale: string`, not `Locale`, for the same
 // reason as app/[locale]/layout.tsx's generateMetadata: that's the type
@@ -59,6 +72,27 @@ export default async function Home({
   const contact = buildContact();
   const footer = buildFooter(content);
 
+  // JSON-LD Person block — search engines can already read the name and
+  // contact links off the rendered page, but structured data is what lets
+  // a search engine connect this specific page to *this specific person*
+  // rather than just indexing prose that happens to mention a name, which
+  // matters for a page whose whole job is being found by someone searching
+  // for this person by name. `sameAs` comes from content/facts.ts's
+  // CONTACT_LINKS via personSameAs() — GitHub and LinkedIn only, not the
+  // mailto: link, since schema.org's `sameAs` is for other profile pages
+  // that identify the same person, not a contact method. Nothing here is
+  // invented: every field is either content.name (already on the page),
+  // JOB_TITLE (see its comment above), SITE_URL, or a URL already printed
+  // on the page.
+  const personJsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Person",
+    name: content.name,
+    jobTitle: JOB_TITLE[locale as Locale],
+    url: `${SITE_URL}/${locale}`,
+    sameAs: personSameAs(),
+  };
+
   const navItems = [
     { id: "work", label: content.nav.work },
     { id: "experience", label: content.nav.experience },
@@ -67,6 +101,22 @@ export default async function Home({
 
   return (
     <>
+      {/* Structured data for search engines — no visual output. See the
+          Next.js JSON-LD guide (node_modules/next/dist/docs/.../json-ld.md)
+          for why a plain <script> tag is the recommended approach rather
+          than next/script: this is data, not code that needs next/script's
+          load-timing controls. The `<` escape guards against XSS if any
+          interpolated string ever contained a literal `<` — none of the
+          fields here currently can (they're a proper noun, a two-word job
+          title, and URLs), but the docs call this out as the correct
+          default regardless. */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(personJsonLd).replace(/</g, "\\u003c"),
+        }}
+      />
+
       {/* Page header — name, positioning, contact. Not sticky: this is
           identity, read once, not a tool you need reachable mid-scroll. */}
       <header className="mx-auto w-full max-w-[68ch] px-6 pt-12 sm:px-8">

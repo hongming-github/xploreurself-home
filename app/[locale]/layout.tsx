@@ -7,6 +7,7 @@ import { LOCALES, type Locale } from "@/content/ids";
 import { en } from "@/content/en";
 import { zh } from "@/content/zh";
 import type { SiteContent } from "@/content/types";
+import { SITE_URL } from "@/content/facts";
 
 // Phase P3: this file replaces app/layout.tsx as the project's ROOT layout.
 // The Next.js docs' internationalization guide is explicit that the root
@@ -68,9 +69,79 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const content = CONTENT[locale as Locale];
+
+  // Every URL-shaped field below is written as a path relative to
+  // metadataBase ("/en", not "https://xploreurself.com/en") rather than
+  // concatenating SITE_URL onto each one by hand. That's what the Next.js
+  // docs' metadataBase section recommends — "URL composition favors
+  // developer intent" — and it means SITE_URL is only ever typed out once
+  // in this function (right below), not once per field.
+  const path = `/${locale}`;
+
+  // Open Graph's `locale` field wants an underscore-joined language_TERRITORY
+  // tag (en_US, zh_CN) — a different format from the `en`/`zh` this project
+  // otherwise uses everywhere else (URL segments, <html lang>, LOCALES).
+  // That's why this is a small literal branch here instead of a third field
+  // threaded through content/ids.ts: nothing else in the codebase needs the
+  // underscore form, so giving it a shared home would just be a lookup
+  // table with one caller.
+  const ogLocale = locale === "en" ? "en_US" : "zh_CN";
+
   return {
     title: content.meta.title,
     description: content.meta.description,
+
+    // Without this, Next.js warns at build time on every relative URL below
+    // and would otherwise have no base to resolve them against, so every
+    // OG/canonical URL on the page would resolve relative to whatever host
+    // actually served the request — wrong the moment this deploys anywhere
+    // but xploreurself.com itself (a Vercel preview URL, a fork, etc).
+    metadataBase: new URL(SITE_URL),
+
+    alternates: {
+      canonical: path,
+      // Both locales must list the *same* complete set here (including
+      // themselves) — that's what tells Google "these two pages are
+      // translations of each other" instead of "these are two unrelated
+      // pages that happen to look similar" (the latter risks a duplicate-
+      // content penalty). x-default is the entry a search engine falls
+      // back to for a visitor whose language doesn't match either
+      // alternate; it points at /en for the same reason proxy.ts's `/` →
+      // `/en` redirect does — English is this site's default, not a
+      // language-negotiated guess.
+      languages: {
+        en: "/en",
+        zh: "/zh",
+        "x-default": "/en",
+      },
+    },
+
+    openGraph: {
+      type: "website",
+      locale: ogLocale,
+      url: path,
+      siteName: "xploreurself.com",
+      title: content.meta.title,
+      description: content.meta.description,
+      // No `images` field here on purpose: app/[locale]/opengraph-image.tsx
+      // is a *file-based* convention colocated in this same route segment,
+      // and the Next.js docs are explicit that file-based metadata "has the
+      // higher priority and will override" whatever a manual `images` array
+      // here would say. Setting both would just be two sources of truth for
+      // one og:image tag, with the file always winning anyway.
+    },
+
+    twitter: {
+      card: "summary_large_image",
+      title: content.meta.title,
+      description: content.meta.description,
+      // No `images` field here either — same reasoning as openGraph above,
+      // and verified rather than assumed: curling the built `/en` page
+      // shows Next.js already emits a real `twitter:image` meta tag
+      // pointing at the same file-based opengraph-image.tsx URL, with no
+      // second render and nothing declared here. One image, one build step,
+      // both card formats covered.
+    },
   };
 }
 
