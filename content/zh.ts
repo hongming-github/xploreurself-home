@@ -40,11 +40,8 @@ export const zh: SiteContent = {
     education: "教育背景",
   },
 
+  // Only "live" is left here — see content/facts.ts's LinkKey comment.
   linkLabels: {
-    email: "邮箱",
-    github: "GitHub",
-    linkedin: "LinkedIn",
-    resume: "简历",
     live: "线上",
   },
 

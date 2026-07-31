@@ -19,10 +19,6 @@ import type { SiteContent } from "./types";
 // GitHub links for AI Detective and ai-usage below ARE real (see
 // content/facts.ts). "What to Eat" (eat)'s repo is private, hence the
 // "Code private." note instead of a GitHub link.
-//
-// Resume: docs/plan.md's P0 checklist records the finalized, no-phone-number
-// PDF at public/resume.pdf, verified before wiring it in (see the P2
-// review). The href itself lives in content/facts.ts's CONTACT_LINKS.
 export const en: SiteContent = {
   meta: {
     title: "Hongming Zhao — AI Engineer, Singapore",
@@ -49,11 +45,10 @@ export const en: SiteContent = {
     education: "Education",
   },
 
+  // Only "live" is left here — see content/facts.ts's LinkKey comment for
+  // why the contact row and the GitHub project links no longer go through
+  // a translated label at all.
   linkLabels: {
-    email: "Email",
-    github: "GitHub",
-    linkedin: "LinkedIn",
-    resume: "Resume",
     live: "Live",
   },
 

@@ -9,8 +9,11 @@ import type { ExperienceId, ProjectId } from "./ids";
 // a future edit update one copy and silently leave the other stale.
 //
 // content/en.ts and content/zh.ts each supply the *label* text that goes
-// with a metric or link (e.g. "output tokens" vs "输出 token"), keyed by the
-// same `MetricKey` / `LinkKey` union used here — see content/types.ts.
+// with a metric (e.g. "output tokens" vs "输出 token"), keyed by the same
+// `MetricKey` union used here — see content/types.ts. Most link text used
+// to work the same way via `LinkKey`, but as of 2026-07-31 almost none of
+// it actually varies by locale (see the `LinkKey` comment below), so most
+// link labels are now plain strings living right here instead.
 
 export type Sentiment = "pos" | "neg";
 
@@ -37,17 +40,32 @@ export interface MetricFact {
 }
 
 /**
- * Every link *kind* that appears anywhere on the page. The contact row and
- * each project's link group both draw from this same small vocabulary, so
- * e.g. "Live" only needs one Chinese translation (content.linkLabels.live)
- * no matter how many places on the page use a "live" link.
+ * Link kinds whose visible text actually differs by locale. This used to
+ * list "email" / "github" / "linkedin" / "resume" too, back when the
+ * contact row rendered translated *labels* ("Email", "GitHub", ...). Now
+ * the contact row prints the real values instead (see CONTACT_LINKS below)
+ * and those values don't get translated — an email address and a GitHub
+ * URL read the same in any language. "GitHub" as a per-project link label
+ * has the same property (identical in content/en.ts and content/zh.ts
+ * today), so it's inlined as a literal string in PROJECT_FACTS instead of
+ * routed through a translation table for a translation that never
+ * actually varies. "live" is the one kind left that's genuine prose
+ * ("Live" / "线上"), so it's the only member left in this union.
  */
-export type LinkKey = "email" | "github" | "linkedin" | "resume" | "live";
+export type LinkKey = "live";
 
-export interface LinkFact {
-  key: LinkKey;
-  href: string;
-}
+/**
+ * A per-project link. Two shapes, matched by `kind`:
+ *   - "literal": the visible text is a locale-independent fact (a proper
+ *     noun like "GitHub"), spelled out right here next to its href.
+ *   - "translated": the visible text is real prose that differs by locale
+ *     (currently only "Live"/"线上"), so it's a `LinkKey` that content/en.ts
+ *     and content/zh.ts each supply a label for — see content/site.ts's
+ *     buildProjects for where the two get resolved into one string.
+ */
+export type LinkFact =
+  | { kind: "literal"; label: string; href: string }
+  | { kind: "translated"; key: LinkKey; href: string };
 
 export interface ProjectFact {
   /** Proper noun / product name — identical in both locales (see
@@ -95,7 +113,8 @@ export const PROJECT_FACTS: Record<ProjectId, ProjectFact> = {
     tags: ["RAG"],
     links: [
       {
-        key: "github",
+        kind: "literal",
+        label: "GitHub",
         href: "https://github.com/hongming-github/AI-Detective-Challenge",
       },
     ],
@@ -105,7 +124,11 @@ export const PROJECT_FACTS: Record<ProjectId, ProjectFact> = {
     metrics: [],
     tags: ["macOS"],
     links: [
-      { key: "github", href: "https://github.com/hongming-github/ai-usage" },
+      {
+        kind: "literal",
+        label: "GitHub",
+        href: "https://github.com/hongming-github/ai-usage",
+      },
     ],
   },
   "what-to-eat": {
@@ -114,8 +137,13 @@ export const PROJECT_FACTS: Record<ProjectId, ProjectFact> = {
     tags: ["Next.js", "TypeScript"],
     // The only project with a live URL. Verified reachable during the P2
     // review: https://eat.xploreurself.com 307s to /login (password-gated)
-    // and that page returns 200 — the service is up.
-    links: [{ key: "live", href: "https://eat.xploreurself.com" }],
+    // and that page returns 200 — the service is up. "Live" is genuine
+    // prose (translated to "线上" on the Chinese page), unlike the literal
+    // "GitHub" labels above, so this is the one project link still routed
+    // through content/en.ts / content/zh.ts's linkLabels.
+    links: [
+      { kind: "translated", key: "live", href: "https://eat.xploreurself.com" },
+    ],
   },
 };
 
@@ -175,17 +203,38 @@ export const EDUCATION_PERIODS: Period[] = [
   { from: "2012", to: "2016" },
 ];
 
-/** Ordered per docs/plan.md's contact row: Email, GitHub, LinkedIn, Resume.
- *  Same reasoning as PROJECT_IDS's ordering — this array decides the order,
- *  so no locale file can render the contact row in a different sequence. */
-export const CONTACT_LINKS: LinkFact[] = [
-  { key: "email", href: "mailto:hi@xploreurself.com" },
-  { key: "github", href: "https://github.com/hongming-github" },
+/**
+ * The contact block prints the actual value, not a translated label — an
+ * HR reader is usually copying the email address, not clicking a word that
+ * says "Email" (2026-07-31 decision). `value` is exactly what's rendered:
+ * no `content.linkLabels` lookup involved, because there's no prose left
+ * to translate — `hi@xploreurself.com` reads the same in English or
+ * Chinese. `value` and `href` differ for the last two entries only
+ * because a URL's copy-friendly display form (no `https://`, no trailing
+ * slash) isn't the same string curl/fetch needs to actually reach it.
+ *
+ * Order here is render order, same reasoning as PROJECT_IDS's ordering —
+ * this array is the only place that decides it, so neither locale file has
+ * a say. Résumé used to be a fourth entry; it was removed along with
+ * `public/resume.pdf` itself (2026-07-31) rather than just unlinked, since
+ * a file left in `public/` still deploys and stays fetchable regardless of
+ * whether anything on the page points at it.
+ */
+export interface ContactLink {
+  value: string;
+  href: string;
+}
+
+export const CONTACT_LINKS: ContactLink[] = [
+  { value: "hi@xploreurself.com", href: "mailto:hi@xploreurself.com" },
   {
-    key: "linkedin",
-    href: "https://www.linkedin.com/in/hongming-zhao-6abab1138/",
+    value: "github.com/hongming-github",
+    href: "https://github.com/hongming-github",
   },
-  { key: "resume", href: "/resume.pdf" },
+  {
+    value: "linkedin.com/in/hongming-zhao",
+    href: "https://www.linkedin.com/in/hongming-zhao",
+  },
 ];
 
 // Per docs/plan.md decision 9 the repo name is xploreurself-home under this

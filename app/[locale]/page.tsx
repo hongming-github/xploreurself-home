@@ -11,7 +11,7 @@ import {
 } from "@/content/site";
 import { Nav } from "@/components/Nav";
 import { Prose } from "@/components/Prose";
-import { LinkRow } from "@/components/LinkRow";
+import { ContactLinks } from "@/components/ContactLinks";
 import { SectionHeading } from "@/components/SectionHeading";
 import { ProjectRow } from "@/components/ProjectRow";
 import { TimelineItem } from "@/components/TimelineItem";
@@ -53,7 +53,10 @@ export default async function Home({
   const projects = buildProjects(content);
   const experience = buildExperience(content);
   const education = buildEducation(content);
-  const contact = buildContact(content);
+  // No `content` argument — the contact block's three values are
+  // locale-independent (see content/facts.ts's CONTACT_LINKS), so there's
+  // no locale prose for buildContact to zip in, unlike the calls above.
+  const contact = buildContact();
   const footer = buildFooter(content);
 
   const navItems = [
@@ -76,7 +79,7 @@ export default async function Home({
             ))}
           </Prose>
 
-          <LinkRow items={contact} />
+          <ContactLinks items={contact} />
         </div>
       </header>
 

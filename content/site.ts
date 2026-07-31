@@ -54,8 +54,13 @@ export function buildProjects(content: SiteContent): Project[] {
         sentiment: metric.sentiment,
       })),
       tags: fact.tags,
+      // Two shapes of LinkFact (see content/facts.ts): "literal" already
+      // carries its own visible text ("GitHub" — same in every locale, so
+      // there's nothing to look up); "translated" carries a LinkKey that
+      // still needs resolving against this locale's linkLabels, same as
+      // before this file only ever had the second case.
       links: fact.links.map((link) => ({
-        label: content.linkLabels[link.key],
+        label: link.kind === "literal" ? link.label : content.linkLabels[link.key],
         href: link.href,
       })),
       note: copy.note,
@@ -90,9 +95,17 @@ export function buildEducation(content: SiteContent): EducationView[] {
   }));
 }
 
-export function buildContact(content: SiteContent): LinkItem[] {
+// No `content: SiteContent` parameter here (unlike buildProjects/
+// buildExperience/buildEducation above) because there's no locale prose
+// left to zip in: CONTACT_LINKS's `value` strings ARE the rendered text,
+// the same in /en and /zh. LinkItem's `label` field is reused rather than
+// introducing a separate render-ready contact type, since the two are
+// structurally identical (visible text + href) even though the *meaning*
+// of "label" differs — a translated word for a project link, a literal
+// value for a contact link.
+export function buildContact(): LinkItem[] {
   return CONTACT_LINKS.map((link) => ({
-    label: content.linkLabels[link.key],
+    label: link.value,
     href: link.href,
   }));
 }

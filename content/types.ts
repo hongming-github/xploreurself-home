@@ -68,10 +68,13 @@ export interface SiteContent {
     experience: string;
     education: string;
   };
-  /** Label text for every link kind that appears on the page (contact row
-   *  and project links). `Record<LinkKey, ...>` means content/zh.ts must
-   *  supply a Chinese label for every kind in content/facts.ts's LinkKey
-   *  union, or `tsc` fails — see that file's header comment. */
+  /** Label text for the link kinds whose visible text is genuine prose —
+   *  as of 2026-07-31 that's just "live" ("Live" / "线上"); see
+   *  content/facts.ts's `LinkKey` comment for why the contact row and most
+   *  project links (an email address, a GitHub URL, the literal word
+   *  "GitHub") don't go through this table anymore. `Record<LinkKey, ...>`
+   *  still means content/zh.ts must supply a Chinese label for every kind
+   *  in the union, or `tsc` fails — same parity guarantee, smaller union. */
   linkLabels: Record<LinkKey, string>;
   /** Same idea for metric labels — see content/facts.ts's MetricKey. */
   metricLabels: Record<MetricKey, string>;
