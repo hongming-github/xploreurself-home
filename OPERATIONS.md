@@ -11,6 +11,30 @@ environment variable to remember. A deploy takes about a minute.
 Nothing here reads `process.env`, so there is no "I changed a variable but it didn't take
 effect" failure mode.
 
+### Yes, changing one word rebuilds the whole site
+
+Content lives in the repo, so every edit is a commit and every commit is a build. That
+sounds heavier than it is: the whole site is eight prerendered pages and two images, the
+build takes about a minute, and the swap is atomic — no downtime, no cache to purge, no
+database to migrate.
+
+**For a typo you don't need a local checkout at all.** Open the file on github.com, click
+the pencil, edit, commit. Vercel picks it up from there. That works from a phone.
+
+**A failed build cannot take the site down.** Vercel only switches traffic to a build that
+succeeded; a broken one leaves the previous deploy serving. So if a browser edit to
+`content/zh.ts` breaks a type — deleting a key, say — the result is a red build and a
+notification, while the live site carries on. The locale-parity type error is a gate in the
+deploy pipeline, not just a local convenience.
+
+### Why content isn't in a CMS
+
+The obvious alternative is a CMS, so content changes wouldn't need a deploy. It's the wrong
+trade here. You'd give up version history and rollback on every wording change, the
+type-checked guarantee that both locales stay in sync, and the fully-static model — in
+exchange for a runtime dependency on a service that can be down. All to save a minute on a
+site that changes a few times a month.
+
 ## Editing an existing article
 
 Edit the body of `content/work/<slug>.mdx`. That is the whole job — no registration, no
