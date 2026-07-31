@@ -38,6 +38,7 @@ export const zh: SiteContent = {
     work: "精选项目",
     experience: "工作经历",
     education: "教育背景",
+    contact: "联系方式",
   },
 
   // Only "live" is left here — see content/facts.ts's LinkKey comment.

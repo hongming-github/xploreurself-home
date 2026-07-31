@@ -43,6 +43,7 @@ export const en: SiteContent = {
     work: "Selected Work",
     experience: "Experience",
     education: "Education",
+    contact: "Contact",
   },
 
   // Only "live" is left here — see content/facts.ts's LinkKey comment for

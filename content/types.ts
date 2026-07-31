@@ -1,5 +1,5 @@
 import type { ExperienceId, ProjectId } from "./ids";
-import type { LinkKey, MetricKey, Sentiment } from "./facts";
+import type { ContactIconKey, LinkKey, MetricKey, Sentiment } from "./facts";
 
 // Shape of the page's copy, kept separate from the copy itself
 // (content/en.ts / content/zh.ts). See content/ids.ts and content/facts.ts
@@ -62,11 +62,16 @@ export interface SiteContent {
   };
   /** Longer section headings rendered above each section (SectionHeading) —
    *  distinct from `nav` because the Chinese copy uses different phrasing
-   *  for the anchor label ("项目") than for the heading ("精选项目"). */
+   *  for the anchor label ("项目") than for the heading ("精选项目"). `contact`
+   *  has no counterpart in `nav`: docs/plan.md is explicit that the contact
+   *  block gets a heading but not a sticky-nav anchor, since it sits above
+   *  the nav and is already on screen at every scroll position — an anchor
+   *  to something already visible has nothing to jump to. */
   sections: {
     work: string;
     experience: string;
     education: string;
+    contact: string;
   };
   /** Label text for the link kinds whose visible text is genuine prose —
    *  as of 2026-07-31 that's just "live" ("Live" / "线上"); see
@@ -119,6 +124,21 @@ export interface Metric {
 export interface LinkItem {
   label: string;
   href?: string;
+}
+
+/**
+ * Render-ready contact row: a value, its href, and which icon goes next to
+ * it. Not just a `LinkItem` with an extra field bolted on — the icon isn't
+ * optional here the way `href` is on `LinkItem` (every contact row has one
+ * by construction, since content/facts.ts's CONTACT_LINKS always supplies
+ * an icon), and keeping the two types separate means ContactLinks.tsx's
+ * prop type says exactly what it needs, rather than components/LinkRow.tsx
+ * gaining a field it never uses.
+ */
+export interface ContactItem {
+  value: string;
+  href: string;
+  icon: ContactIconKey;
 }
 
 export interface Project {

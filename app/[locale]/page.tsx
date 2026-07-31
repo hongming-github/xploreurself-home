@@ -79,7 +79,17 @@ export default async function Home({
             ))}
           </Prose>
 
-          <ContactLinks items={contact} />
+          <div>
+            {/* Heading only — no `id`/`scroll-mt-16` and no entry in
+                `navItems` above. docs/plan.md is explicit that this block
+                doesn't get a nav anchor: it sits above the sticky nav and
+                is on screen at every scroll position, so there's nothing
+                for a jump-link to do that isn't already true. */}
+            <SectionHeading>{content.sections.contact}</SectionHeading>
+            <div className="mt-4">
+              <ContactLinks items={contact} />
+            </div>
+          </div>
         </div>
       </header>
 

@@ -220,20 +220,37 @@ export const EDUCATION_PERIODS: Period[] = [
  * a file left in `public/` still deploys and stays fetchable regardless of
  * whether anything on the page points at it.
  */
+/**
+ * Which lucide-react icon a contact row gets, named by service rather than
+ * by the icon component itself — that keeps this file free of a React/JSX
+ * import for what is otherwise plain data. components/ContactLinks.tsx is
+ * the one place that turns "github" into the `Github` component, the same
+ * division of labour as `MetricKey` (a name here) vs. its rendered label
+ * (resolved later, closer to the DOM).
+ */
+export type ContactIconKey = "mail" | "github" | "linkedin";
+
 export interface ContactLink {
   value: string;
   href: string;
+  icon: ContactIconKey;
 }
 
 export const CONTACT_LINKS: ContactLink[] = [
-  { value: "hi@xploreurself.com", href: "mailto:hi@xploreurself.com" },
+  {
+    value: "hi@xploreurself.com",
+    href: "mailto:hi@xploreurself.com",
+    icon: "mail",
+  },
   {
     value: "github.com/hongming-github",
     href: "https://github.com/hongming-github",
+    icon: "github",
   },
   {
     value: "linkedin.com/in/hongming-zhao",
     href: "https://www.linkedin.com/in/hongming-zhao",
+    icon: "linkedin",
   },
 ];
 

@@ -8,10 +8,10 @@ import {
 } from "./facts";
 import type { Period } from "./facts";
 import type {
+  ContactItem,
   EducationView,
   ExperienceItem,
   FooterView,
-  LinkItem,
   Project,
   SiteContent,
 } from "./types";
@@ -98,15 +98,14 @@ export function buildEducation(content: SiteContent): EducationView[] {
 // No `content: SiteContent` parameter here (unlike buildProjects/
 // buildExperience/buildEducation above) because there's no locale prose
 // left to zip in: CONTACT_LINKS's `value` strings ARE the rendered text,
-// the same in /en and /zh. LinkItem's `label` field is reused rather than
-// introducing a separate render-ready contact type, since the two are
-// structurally identical (visible text + href) even though the *meaning*
-// of "label" differs — a translated word for a project link, a literal
-// value for a contact link.
-export function buildContact(): LinkItem[] {
+// the same in /en and /zh. Returns `ContactItem[]`, not `LinkItem[]` — see
+// content/types.ts's ContactItem comment for why the icon key earns its
+// own render-ready shape instead of an optional field on LinkItem.
+export function buildContact(): ContactItem[] {
   return CONTACT_LINKS.map((link) => ({
-    label: link.value,
+    value: link.value,
     href: link.href,
+    icon: link.icon,
   }));
 }
 
