@@ -12,6 +12,12 @@
 // weight, the same distinction content/types.ts draws for `note` (metadata,
 // stays muted) versus everything else. `text-muted` is reserved for actual
 // metadata elsewhere on the page: dates, tag chips, the "Code private." note.
+//
+// Uppercase + mono is a Latin-only treatment, though — on the Chinese page
+// (phase P3) it needs to turn off, since `text-transform: uppercase` is a
+// no-op on Han characters and Geist Mono's metrics look wrong applied to
+// CJK. That override lives in app/globals.css as a `:lang(zh) h2` rule, not
+// as a locale prop on this component — see that file for why.
 export function SectionHeading({ children }: { children: React.ReactNode }) {
   return (
     <h2 className="font-mono text-[13px] font-medium uppercase tracking-[0.08em] text-text">

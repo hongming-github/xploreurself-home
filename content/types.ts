@@ -1,23 +1,106 @@
-// Shape of the page's copy, kept separate from the copy itself (content/en.ts).
-//
-// Why copy lives in a data module instead of inline JSX: Phase P3 of this
-// project adds a Chinese homepage (content/zh.ts) that must expose the exact
-// same shape. Typing that shape once here means a missing or mistyped field
-// in the Chinese file is a `tsc` error, not a silent gap discovered by a
-// reader. Think of this the way you'd use a Pydantic model to validate two
-// JSON payloads against one schema, instead of hand-checking that a second
-// dict has the same keys as the first.
+import type { ExperienceId, ProjectId } from "./ids";
+import type { LinkKey, MetricKey, Sentiment } from "./facts";
 
-export type Sentiment = "pos" | "neg";
+// Shape of the page's copy, kept separate from the copy itself
+// (content/en.ts / content/zh.ts). See content/ids.ts and content/facts.ts
+// for the locale-independent structure and numbers this type builds on top
+// of, and content/site.ts for how the two get zipped back together into the
+// flat shapes the components render.
+
+/** Prose for one project. Everything structural (name, metric numbers,
+ *  tags, URLs) lives in content/facts.ts instead — see that file's header
+ *  comment for why. */
+export interface ProjectCopy {
+  description: string;
+  /** Short factual annotation, e.g. "Code private." Never "coming soon" copy. */
+  note?: string;
+}
+
+/** Prose for one experience entry. `period` and `org` are facts (see
+ *  content/facts.ts EXPERIENCE_FACTS) — only the role title and the
+ *  one-line description are prose that differs by locale. */
+export interface ExperienceCopy {
+  role: string;
+  description: string;
+}
 
 /**
- * One metric reading, e.g. "ASR@3  20% → 0%".
+ * Education is intentionally NOT keyed by an id/Record the way work and
+ * experience are. docs/plan.md only calls out work and experience for the
+ * Record<Id, ...> treatment (project count and experience count are exactly
+ * the fields most likely to silently drift between locales); education is
+ * three static rows that essentially never change, so the extra structure
+ * would be ceremony without a real parity risk to guard against. Org names
+ * here are English in both locales (same reasoning as ExperienceFact.org).
  *
- * `from` is optional because not every metric in this site's content has a
- * documented before/after: some are a single reading (e.g. "decoys rejected
- * 3/3"), others are a genuine before → after pair. When `from` is present,
- * MetricPair renders "{from} → {value}"; otherwise it renders just `value`.
+ * No `period` field here: the year digits are a fact, not prose, so they
+ * live in content/facts.ts's EDUCATION_PERIODS (matched by array position)
+ * instead of being retyped per locale — see content/site.ts's buildEducation
+ * for where the two get zipped back together.
  */
+export interface EducationItem {
+  org: string;
+  program: string;
+}
+
+export interface SiteContent {
+  meta: {
+    title: string;
+    description: string;
+  };
+  /** "Hongming Zhao" in both locales — see content/en.ts and content/zh.ts
+   *  for why this is spelled out per-locale rather than hoisted into
+   *  content/facts.ts despite being identical today. */
+  name: string;
+  /** Each string is one paragraph of the positioning statement. */
+  positioning: string[];
+  /** Short labels for the sticky nav's section anchors. */
+  nav: {
+    work: string;
+    experience: string;
+    education: string;
+  };
+  /** Longer section headings rendered above each section (SectionHeading) —
+   *  distinct from `nav` because the Chinese copy uses different phrasing
+   *  for the anchor label ("项目") than for the heading ("精选项目"). */
+  sections: {
+    work: string;
+    experience: string;
+    education: string;
+  };
+  /** Label text for every link kind that appears on the page (contact row
+   *  and project links). `Record<LinkKey, ...>` means content/zh.ts must
+   *  supply a Chinese label for every kind in content/facts.ts's LinkKey
+   *  union, or `tsc` fails — see that file's header comment. */
+  linkLabels: Record<LinkKey, string>;
+  /** Same idea for metric labels — see content/facts.ts's MetricKey. */
+  metricLabels: Record<MetricKey, string>;
+  /** The word for "still ongoing" ("Present" / "至今"), used to render any
+   *  content/facts.ts Period whose `to` is omitted. This is prose, not a
+   *  fact — the digits around it come from facts.ts, this is the one word
+   *  that changes by locale. See content/site.ts for where it's used. */
+  present: string;
+  /** Keyed by content/ids.ts's PROJECT_IDS. Missing an entry for any id is
+   *  a `tsc` error, not a page that quietly ships one project short. */
+  work: Record<ProjectId, ProjectCopy>;
+  /** Keyed by content/ids.ts's EXPERIENCE_IDS — same guarantee. */
+  experience: Record<ExperienceId, ExperienceCopy>;
+  education: EducationItem[];
+  footer: {
+    copyright: string;
+    sourceLabel: string;
+  };
+}
+
+// --- Render-ready view types -------------------------------------------
+//
+// These are what the existing components (ProjectRow, TimelineItem,
+// MetricPair, LinkRow, Footer) actually take as props. content/site.ts
+// builds them by zipping a SiteContent (locale prose) together with
+// content/facts.ts (locale-independent numbers and URLs) — components never
+// import content/facts.ts directly and don't need to know the content is
+// split at all.
+
 export interface Metric {
   label: string;
   value: string;
@@ -27,9 +110,8 @@ export interface Metric {
 
 /**
  * A link that may not exist yet. `href` is deliberately optional: per the
- * project's decision to never ship placeholder links (see content/en.ts
- * comments for the specific cases), an item with no `href` renders as
- * inert text instead of a dead or guessed anchor.
+ * project's decision to never ship placeholder links, an item with no
+ * `href` renders as inert text instead of a dead or guessed anchor.
  */
 export interface LinkItem {
   label: string;
@@ -42,7 +124,6 @@ export interface Project {
   metrics: Metric[];
   tags?: string[];
   links: LinkItem[];
-  /** Short factual annotation, e.g. "Code private." Never "coming soon" copy. */
   note?: string;
 }
 
@@ -53,35 +134,18 @@ export interface ExperienceItem {
   description: string;
 }
 
-export interface EducationItem {
+/** Render-ready education row — content/site.ts's buildEducation() zips
+ *  content/en.ts / content/zh.ts's EducationItem (org, program) together
+ *  with content/facts.ts's EDUCATION_PERIODS into this, the same pattern
+ *  ExperienceItem already uses for experience. */
+export interface EducationView {
   org: string;
   program: string;
   period: string;
 }
 
-export interface SiteContent {
-  meta: {
-    title: string;
-    description: string;
-  };
-  name: string;
-  /** Each string is one paragraph of the positioning statement. */
-  positioning: string[];
-  contact: LinkItem[];
-  /** Short labels for the sticky nav's section anchors — kept in content,
-   *  like everything else on the page, so phase P3's content/zh.ts can
-   *  translate them without touching component code. */
-  nav: {
-    work: string;
-    experience: string;
-    education: string;
-  };
-  work: Project[];
-  experience: ExperienceItem[];
-  education: EducationItem[];
-  footer: {
-    copyright: string;
-    sourceLabel: string;
-    sourceHref: string;
-  };
+export interface FooterView {
+  copyright: string;
+  sourceLabel: string;
+  sourceHref: string;
 }

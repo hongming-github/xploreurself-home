@@ -125,3 +125,26 @@ body {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
+
+/*
+ * Chinese section headings (phase P3, docs/plan.md section 4) drop two
+ * treatments that only make sense for Latin type. `text-transform:
+ * uppercase` is a no-op on Han characters — there's no "upper case" 精 — and
+ * Geist Mono's letterforms were drawn for the Latin alphabet, so leaning on
+ * its CJK fallback (the same "PingFang SC" listed in --font-mono above)
+ * reads visibly worse than the sans stack's own CJK fallback. Size,
+ * letter-spacing, weight, and full-contrast colour all stay — those still
+ * read as "structural signpost" in Chinese, same as in English.
+ *
+ * Selector choice: `:lang(zh)` instead of threading a `locale` prop through
+ * components/SectionHeading.tsx. The browser already knows the document's
+ * language — it's the `lang` attribute app/[locale]/layout.tsx sets on
+ * <html> per route — so re-deriving that same fact in React state as well
+ * would just be a second source of truth for one piece of information. A
+ * bare `h2` selector is specific enough without adding a class hook: on
+ * this page, SectionHeading is the only component that renders an <h2>.
+ */
+:lang(zh) h2 {
+  text-transform: none;
+  font-family: var(--font-sans);
+}
