@@ -110,7 +110,14 @@ export const PROJECT_FACTS: Record<ProjectId, ProjectFact> = {
     // next/link instead of a plain <a>, which is what lets the View
     // Transition to this article's <h1> (see components/ProjectRow.tsx)
     // fire at all — a full-page <a> navigation never triggers one.
-    links: [{ kind: "translated", key: "article", href: "/en/work/redblue" }],
+    links: [
+      { kind: "translated", key: "article", href: "/en/work/redblue" },
+      {
+        kind: "literal",
+        label: "GitHub",
+        href: "https://github.com/hongming-github/redblue",
+      },
+    ],
   },
   jobagent: {
     // Matches how this project is named on the CV, so a reader holding both

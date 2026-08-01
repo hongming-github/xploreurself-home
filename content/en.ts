@@ -5,14 +5,10 @@ import type { SiteContent } from "./types";
 // data module instead of JSX, and content/facts.ts for the numbers, tags,
 // and URLs that live outside this file because they don't change by locale.
 //
-// A note on missing links (decision 5 in docs/plan.md: ship an honest v1,
-// never a placeholder link or "coming soon" text). One is still
-// deliberately left out as of phase P4:
-//
-//   redblue's GitHub link — checked with `gh repo list` while writing this:
-//   the repo isn't public yet. docs/plan.md's own delivery plan (phase P7)
-//   adds this link only *after* the repo goes public, which happens after
-//   the homepage ships. Linking to it now would 404.
+// Every link on this page now resolves. That was not true for most of the
+// build: decision 5 in docs/plan.md rules out placeholder links and "coming
+// soon" text, so each link appeared only once its destination existed —
+// redblue's GitHub link last, in phase P7, once that repo went public.
 //
 // redblue and jobagent's deep-dive pages (content/work/*.mdx) DO exist now
 // — see content/facts.ts's PROJECT_FACTS for their links. GitHub links for
