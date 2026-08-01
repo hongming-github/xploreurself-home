@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 import createMDX from "@next/mdx";
 
-// Security response headers. docs/plan.md P6.5 has the audit behind this:
+// Security response headers. docs/plan.md P6.5/P6.6 has the audit behind this:
 // zero API routes, zero Server Actions, zero forms, zero `process.env`
 // reads. The only runtime code is proxy.ts (a fixed `/` -> `/en` redirect),
 // and the one `dangerouslySetInnerHTML` (the JSON-LD block) is fed from
@@ -21,27 +21,68 @@ const securityHeaders = [
   },
   // Clickjacking defence: stop this site's pages from being framed inside
   // someone else's page. Two headers for one goal because the two are
-  // read by different audiences. `frame-ancestors` is the modern CSP form
-  // and the one browsers actually enforce; X-Frame-Options is the older
-  // header that some scanners/checklists still grep for specifically, so
-  // it stays for scanner hygiene even though CSP supersedes it.
-  //
-  // Deliberately setting *only* `frame-ancestors` here, not a full CSP
-  // with `default-src`/`script-src`. A CSP only restricts the directives
-  // it names; with no `default-src` fallback, the other directives are
-  // simply not enforced. That's what keeps this safe to ship today: the
-  // two inline scripts on this site (the theme anti-flash script and the
-  // JSON-LD block) are untouched by a CSP that only speaks about framing.
-  // A real script-src CSP needs hashes for those two inline scripts —
-  // that's real work, deliberately out of scope here, tracked as its own
-  // follow-up rather than half-done in this pass.
+  // read by different audiences. `frame-ancestors` (below, part of the
+  // CSP) is the modern form and the one browsers actually enforce;
+  // X-Frame-Options is the older header that some scanners/checklists
+  // still grep for specifically, so it stays for scanner hygiene even
+  // though CSP supersedes it.
   {
     key: "X-Frame-Options",
     value: "DENY",
   },
+  // Full CSP, one header — a response with two `Content-Security-Policy`
+  // headers has both enforced and the effective policy is their
+  // *intersection*, which is a confusing thing to debug later, so every
+  // directive lives in this single string rather than being split across
+  // multiple header entries.
+  //
+  // `script-src` keeps `'unsafe-inline'` on purpose — this is the one
+  // directive in this policy that isn't fully locked down, and it's worth
+  // explaining why rather than leaving it looking like an oversight.
+  // Measured on the built page: 14 inline `<script>` blocks, almost all
+  // of them Next's own streaming hydration payload
+  // (`self.__next_f.push(...)`), whose contents change on every build.
+  // The two standard alternatives to `'unsafe-inline'` both cost more
+  // than this site's threat model justifies:
+  //   - hashes: would mean extracting the hash of every inline script
+  //     from the built HTML and feeding it back into this header — a
+  //     pipeline that drifts (and silently breaks the site) the moment
+  //     a build changes what Next inlines, which is every build.
+  //   - nonces: need a fresh value per request, which forces every page
+  //     using them out of static prerendering and into dynamic
+  //     rendering — trading away the site's core property (fully static,
+  //     no server) to guard an attack surface this site doesn't have:
+  //     no user input, no query params rendered into the page, no
+  //     database, every byte of content is a build-time constant.
+  // So `'unsafe-inline'` here is a deliberate, measured trade-off, not
+  // something to "fix" by hashing or nonce-ing later.
+  //
+  // Every other directive below is free — this page has zero inline
+  // styles and loads zero external resources, so locking them down to
+  // `'self'` (or `'none'`) costs nothing — and they're what actually
+  // block the realistic attack path for a static site like this: a
+  // compromised npm dependency injecting an *external* script
+  // (`script-src 'self'` refuses it even with `'unsafe-inline'` present,
+  // since that keyword only covers inline/attribute script, not
+  // cross-origin script URLs), form-based exfiltration (`form-action
+  // 'none'`, and this site has no forms anyway), `<base>` tag hijacking
+  // that would silently redirect other relative URLs (`base-uri 'none'`),
+  // and data exfiltration over fetch/XHR/WebSocket to an attacker's
+  // origin (`connect-src 'self'`).
   {
     key: "Content-Security-Policy",
-    value: "frame-ancestors 'none'",
+    value: [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'none'",
+      "frame-ancestors 'none'",
+    ].join("; "),
   },
   // When a link on this site is followed, don't leak the full URL
   // (including path/query) to other-origin destinations — only the
