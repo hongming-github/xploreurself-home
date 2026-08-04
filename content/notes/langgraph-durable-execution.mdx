@@ -1,0 +1,609 @@
+export const frontmatter = {
+  // Frontmatter as a plain JS export, not YAML `---` -- @next/mdx doesn't
+  // parse YAML frontmatter without an extra remark plugin, and this
+  // project's dependency budget doesn't include one (see
+  // content/notes.ts's NoteFrontmatter comment). This is the alternative
+  // the Next.js MDX guide itself documents, same pattern
+  // content/work/redblue.mdx already uses. A comment placed *before* this
+  // `export` line, rather than inside the object literal like this one,
+  // stops MDX from recognising the block as ESM at all -- acorn then
+  // throws a parse error that never mentions comments as the cause. The
+  // comment has to live in here.
+  title: "LangGraph Durable Execution",
+  summary:
+    "A ground-up explanation of how LangGraph persists state, resumes work, travels through time, handles parallel writes, and supports human-in-the-loop.",
+  date: "2026-08-04",
+  kind: "note",
+};
+
+A ground-up explanation of how LangGraph persists state, resumes work, travels
+through time, handles parallel writes, and supports human-in-the-loop. Every
+code sample is self-contained and uses dummy data. Outputs shown are
+representative (illustrative, not copied from a live run).
+
+> **Mental model in one line:** `ainvoke` does not "call a function" — it
+> *advances a stateful thread*. Everything below follows from that.
+
+---
+
+## Table of contents
+
+1. [The checkpoint model](#1-the-checkpoint-model)
+2. [Resume (partial replay)](#2-resume-partial-replay)
+3. [Time travel: history and forking](#3-time-travel-history-and-forking)
+4. [The Postgres table layout](#4-the-postgres-table-layout)
+5. [Concurrency and reducers](#5-concurrency-and-reducers)
+6. [Human-in-the-loop with interrupt](#6-human-in-the-loop-with-interrupt)
+7. [Multiple interrupts and id matching](#7-multiple-interrupts-and-id-matching)
+8. [The re-run rule (why side effects double)](#8-the-re-run-rule-why-side-effects-double)
+9. [Memory vs Postgres checkpointer](#9-memory-vs-postgres-checkpointer)
+10. [Cheat sheet](#10-cheat-sheet)
+
+---
+
+## 1. The checkpoint model
+
+When you compile a graph with a checkpointer, execution is not one big function
+call. It advances in discrete **super-steps**. Each super-step:
+
+1. runs the node(s) scheduled for this step,
+2. merges each node's returned dict into the state (via reducers, §5),
+3. **writes a new checkpoint** (a full snapshot + a `next` pointer).
+
+Checkpoints are written *between* nodes, never mid-node. A node either completes
+and is checkpointed, or it did not run — there is no "half a node" checkpoint.
+
+```
+super-step:    -1           0            1              2            3
+               │            │            │              │            │
+node run:    input      __start__     node_a         node_b       node_c      → END
+               │            │            │              │            │
+checkpoint:  [c-1]        [c0]         [c1]           [c2]         [c3]
+next:    (__start__,)   (node_a,)    (node_b,)      (node_c,)       ()
+state adds:    —            —          query         partial      result
+```
+
+Read the `next` row as a finger pointing one column to the **right**: each
+checkpoint's `next` is the node that will run in the *following* step. So the
+checkpoint taken after `node_a` runs (step 1) has `next=(node_b,)`, not
+`(node_a,)` — node_a is already done by then. `next == ()` (step 3)
+means nothing is pending: the thread finished.
+
+Each checkpoint stores the **merged full state** at that point, plus that `next`
+pointer.
+
+### Sample: watch state accumulate
+
+```python
+from typing import Annotated
+from typing_extensions import TypedDict
+import operator
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+
+class State(TypedDict):
+    value: str
+    log: Annotated[list, operator.add]   # append-only (see §5)
+
+async def step_a(state): return {"value": "A", "log": ["ran A"]}
+async def step_b(state): return {"value": "B", "log": ["ran B"]}
+
+g = (StateGraph(State)
+     .add_node("a", step_a).add_node("b", step_b)
+     .add_edge(START, "a").add_edge("a", "b").add_edge("b", END)
+     .compile(checkpointer=MemorySaver()))
+
+cfg = {"configurable": {"thread_id": "demo-1"}}
+await g.ainvoke({"value": "", "log": []}, cfg)
+
+async for snap in g.aget_state_history(cfg):
+    print(snap.metadata["step"], snap.next, snap.values.get("value"), snap.values["log"])
+```
+
+Representative output (newest first):
+
+```
+2  ()        B  ['ran A', 'ran B']
+1  ('b',)    A  ['ran A']
+0  ('a',)       []
+-1 ('__start__',)   []
+```
+
+Notice `log` grows (append reducer) while `value` is overwritten each step
+(default reducer). That distinction is the whole of §5.
+
+---
+
+## 2. Resume (partial replay)
+
+Resume means: re-invoke the **same `thread_id`** and continue from the last
+checkpoint instead of starting over. The rule:
+
+| `ainvoke` first arg (`input`) | meaning |
+|---|---|
+| a state / dict | **new run** — start from the entry node |
+| `None` | **resume** — continue the existing thread from its checkpoint |
+| `Command(resume=...)` | resume a thread that is paused at an `interrupt` (§6) |
+
+> The `thread_id` (inside `config`) selects **which** thread. The `input`
+> position selects **what to do** with it. They are different arguments — the
+> id always lives in `config`, never in `input`.
+
+### The classic bug
+
+```python
+# WRONG on the resume path: passing a fresh state re-runs from the top,
+# even though a checkpoint exists.
+result = await g.ainvoke(fresh_state, cfg)
+
+# RIGHT: check for pending work, resume with None if interrupted.
+snap = await g.aget_state(cfg)
+graph_input = None if snap.next else fresh_state
+result = await g.ainvoke(graph_input, config=cfg)
+```
+
+### Scenario: a downstream step fails, then recovers
+
+```
+run 1:  a ✅ → b ✅ → c 💥 (raises)
+        checkpoints saved: [after a] [after b]      next = ('c',)
+
+fix the cause, then:
+run 2:  ainvoke(None, cfg)
+        loads [after b], sees next=('c',), runs ONLY c
+        a and b are NOT re-run — their outputs come from the checkpoint
+```
+
+The saved work before the failure point is reused. Only `next` and everything
+after it re-executes.
+
+---
+
+## 3. Time travel: history and forking
+
+The checkpointer keeps the **entire** chain, not just the latest checkpoint.
+That unlocks three uses of the same data:
+
+| use | how | mutates? |
+|---|---|---|
+| **resume** | `ainvoke(None, cfg)` from the latest checkpoint | advances |
+| **inspect history** | `aget_state_history(cfg)` — iterate all snapshots | read-only |
+| **fork / what-if** | `aupdate_state(old_cfg, {...})` then `ainvoke(None, ...)` | branches |
+
+### Forking
+
+Pick an *old* checkpoint, write a change onto it, and run from there. The
+original branch is untouched — you grow a new one.
+
+```python
+# 1. find an old checkpoint (say step 1)
+target = None
+async for snap in g.aget_state_history(cfg):
+    if snap.metadata["step"] == 1:
+        target = snap.config
+        break
+
+# 2. write a modified value onto that historical point -> a new child checkpoint
+new_cfg = await g.aupdate_state(target, {"value": "FORKED"})
+
+# 3. run forward from the fork
+await g.ainvoke(None, new_cfg)
+```
+
+The checkpoint chain becomes a **tree**, organised by `parent_checkpoint_id`:
+
+```
+c-1 ── c0 ── c1 ─┬─ c2 ── c3            (original branch)
+                 │
+                 └─ c2' ── c3' ── c4'   (forked branch: value="FORKED")
+                    ^ source=update
+```
+
+Forking is cheap: the new checkpoint copies the *pointer map* and only writes a
+new blob for the field(s) you changed (see §4). Unchanged fields are shared.
+
+Typical uses: debugging (rewind, tweak state, re-run from the bad node),
+human-in-the-loop edits, and what-if analysis.
+
+---
+
+## 4. The Postgres table layout
+
+The Postgres saver creates four tables. Understanding the split explains both
+de-duplication and crash recovery.
+
+| table | holds | key idea |
+|---|---|---|
+| `checkpoints` | one row per super-step: `parent_checkpoint_id` (tree structure) + a `channel_versions` pointer map | almost no data — just "which field points to which blob version" |
+| `checkpoint_blobs` | the actual field data, chunked by `channel` + `version` | **cross-step de-dup**: unchanged field = shared version |
+| `checkpoint_writes` | pending writes produced by each task within a super-step | **task-level crash recovery** |
+| `checkpoint_migrations` | the saver's own schema version | ignore it |
+
+### How a checkpoint stores data (dummy example)
+
+`checkpoints` row (the pointer map, tiny):
+
+```json
+{
+  "query":   "0000...0002.xxxx",   // never changed -> version 2 for the whole run
+  "options": "0000...0002.xxxx",   // never changed -> shared
+  "partial": "0000...0004.xxxx",   // written once at step 2
+  "result":        "0000...0005.xxxx",   // changed again at step 3
+  "log":           "0000...0005.xxxx"
+}
+```
+
+`checkpoint_blobs` (the data, de-duplicated by version):
+
+| channel | version | bytes | note |
+|---|---|---|---|
+| query | ...0002 | 204 | stored **once**, referenced by every later checkpoint |
+| options | ...0002 | 7 | never changes → one row total |
+| partial | ...0004 | 2458 | written at step 2 |
+| result | ...0004 | 2458 | step 2 value |
+| result | ...0005 | 4630 | step 3 value (new version) |
+| log | ...0002 → ...0005 | grows | new version each append |
+
+> **Why:** restoring a checkpoint = read its pointer map, fetch each version's
+> blob, reassemble. A run with N steps and M fields does **not** store N×M full
+> copies — only the fields that changed, as many times as they changed.
+
+### `checkpoint_writes` and crash recovery
+
+A super-step may run several tasks in parallel. Each task's outputs are written
+to `checkpoint_writes` **before** they are merged into the next checkpoint:
+
+```
+node finishes → write its outputs to checkpoint_writes   (persist "what I produced")
+             → framework merges them into a new checkpoint (checkpoints + blobs)
+             → pending writes are cleared
+```
+
+If the process crashes **after** writes are recorded but **before** the
+checkpoint is formed, on restart LangGraph reads the pending writes instead of
+re-running that task. For parallel tasks A and B where A finished and B did not,
+only **B** re-runs; A's result is read back. This is what makes recovery
+task-level rather than whole-step, so side-effecting calls are not repeated.
+
+---
+
+## 5. Concurrency and reducers
+
+A **reducer** is a merge function attached to a state field. When parallel
+branches each return a dict, reducers decide how their writes combine.
+
+```python
+class State(TypedDict):
+    merged:     Annotated[dict, lambda l, r: {**(l or {}), **(r or {})}]  # dict-merge
+    collected:  Annotated[list, operator.add]                            # list-concat
+    single:     str                                                       # NO reducer
+```
+
+| field | reducer | parallel writes behaviour |
+|---|---|---|
+| `merged` | dict-merge | each branch writes different keys → all kept |
+| `collected` | `operator.add` | lists concatenated |
+| `single` | none (default = overwrite) | **error if written by >1 parallel task** |
+
+### Parallel fan-out with `Send`
+
+```python
+from langgraph.types import Send
+
+def route(state):
+    return [Send("worker", {"item": it}) for it in state["items"]]
+
+async def worker(state):
+    return {"merged": {state["item"]: "done"}, "collected": [state["item"]]}
+```
+
+Representative output for `items = ["x", "y", "z"]`:
+
+```
+merged    : {'x': 'done', 'y': 'done', 'z': 'done'}    # all three kept
+collected : ['x', 'y', 'z']                            # deterministic order
+```
+
+Two important properties:
+
+- **Merge order is deterministic** (the fan-out order), *not* completion order.
+  So the resulting state is reproducible regardless of scheduling — essential
+  for checkpoints to be stable.
+- **Writing a no-reducer field from >1 parallel task raises**, rather than
+  silently letting last-write-win:
+
+```
+InvalidUpdateError: At key 'single': Can receive only one value per step.
+Use an Annotated key to handle multiple values.
+```
+
+This turns a class of silent data-loss races into a startup/first-run error. A
+no-reducer field is only safe when written from a single (post-merge) node.
+
+---
+
+## 6. Human-in-the-loop with interrupt
+
+`interrupt()` makes a node **stop on purpose**, checkpoint, and hand control
+back to the caller, waiting for an external value.
+
+```python
+from langgraph.types import interrupt, Command
+
+async def gate(state):
+    decision = interrupt({"question": "approve this plan?", "plan": state["plan"]})
+    return {"approved": decision}
+```
+
+```python
+cfg = {"configurable": {"thread_id": "hitl-1"}}
+
+# first invoke: runs until interrupt, then stops
+r1 = await g.ainvoke({"plan": "deploy", "approved": ""}, cfg)
+print(r1["__interrupt__"])
+# [Interrupt(value={'question': 'approve this plan?', 'plan': 'deploy'}, id='a1b2c3...')]
+
+snap = await g.aget_state(cfg)
+print(snap.next)      # ('gate',)  -> paused at the node, awaiting input
+
+# later — possibly a different request, hours later — resume with the decision
+r2 = await g.ainvoke(Command(resume="APPROVED"), cfg)
+print(r2["approved"])  # APPROVED
+```
+
+**Interrupt is the twin of crash recovery — same checkpoint machinery, different
+trigger:**
+
+| | crash recovery | interrupt / human-in-the-loop |
+|---|---|---|
+| why it stopped | a node raised (passive) | a node called `interrupt()` (active) |
+| where it stops | before the failed node | *at* the interrupting node |
+| how to continue | `ainvoke(None, cfg)` | `ainvoke(Command(resume=value), cfg)` |
+| underlying | the same checkpoint | the same checkpoint |
+
+### What the caller must send to resume
+
+Only two things:
+
+1. **`thread_id`** — locates the thread (in `config`).
+2. **the decision value** — `Command(resume=value)`.
+
+Business data (the plan, prior intermediate results) is **not** resent — it is
+in the checkpoint. Production shape:
+
+```
+POST /submit   {plan_input...}            -> {thread_id, question}     # stash thread_id
+POST /approve  {thread_id, decision}      -> {status: done, result}    # resume by id
+```
+
+Requires a **Postgres** checkpointer: the two requests may hit different worker
+processes, so the paused thread must be visible across processes (§9).
+
+---
+
+## 7. Multiple interrupts and id matching
+
+Every interrupt has an `id`. It is **deterministic** — derived from the
+interrupt's position (which task/branch + which interrupt in the node), not
+random. Two shapes behave differently:
+
+### (a) Sequential interrupts in one node — one at a time
+
+```python
+async def two_gates(state):
+    first  = interrupt({"ask": "A?"})   # stops here on run 1
+    second = interrupt({"ask": "B?"})   # stops here after first is resumed
+    return {"a": first, "b": second}
+```
+
+```
+invoke                    -> stops at interrupt A
+resume "A-VALUE"          -> node re-runs; A returns "A-VALUE"; stops at B
+resume "B-VALUE"          -> node re-runs; A and B both return; node completes
+```
+
+**One resume clears one interrupt, not all of them.** Two sequential
+interrupts need two resume calls (plus the initial invoke = three `ainvoke`
+calls total). Each resume supplies the value for *only* the interrupt currently
+blocking; the node re-runs from the top, the already-answered interrupt returns
+its stored value without stopping, and execution advances to the next unanswered
+interrupt, which stops again. It is a turnstile: N interrupts → N resumes.
+
+The node re-runs from the top each resume. LangGraph uses the interrupt `id` to
+know "this one already has a resume value, don't stop again". (Consequence:
+see §8 — the code before an interrupt re-runs.)
+
+> Contrast with the **parallel** case (b) below, which *can* clear everything in
+> one resume — because the id-keyed dict supplies all values at once, so no
+> interrupt is left unanswered when the branches re-run.
+
+### (b) Parallel interrupts via `Send` — all at once, matched by id
+
+```python
+def fan(state):
+    return [Send("review", {"item": it}) for it in state["items"]]
+
+async def review(state):
+    d = interrupt({"review_item": state["item"]})
+    return {"approvals": [f"{state['item']}={d}"]}
+```
+
+First invoke surfaces **all** interrupts together, each with a distinct id:
+
+```
+__interrupt__ = [
+  Interrupt(id='id-x', value={'review_item': 'doc-X'}),
+  Interrupt(id='id-y', value={'review_item': 'doc-Y'}),
+  Interrupt(id='id-z', value={'review_item': 'doc-Z'}),
+]
+```
+
+Resume with a dict keyed by id — one call routes each decision to its branch:
+
+```python
+await g.ainvoke(Command(resume={
+    "id-x": "APPROVE",
+    "id-y": "REJECT",
+    "id-z": "APPROVE",
+}), cfg)
+# approvals -> ['doc-X=APPROVE', 'doc-Y=REJECT', 'doc-Z=APPROVE']
+```
+
+| shape | ids | how to resume |
+|---|---|---|
+| single interrupt | one | `Command(resume=value)` |
+| sequential in one node | same id per position, one at a time | `Command(resume=value)`, repeat |
+| parallel branches | distinct per branch | `Command(resume={id: value, ...})` |
+
+Production consequence: the `/submit` response must return each interrupt's
+`id` so `/approve` can map decisions back by id.
+
+---
+
+## 8. The re-run rule (why side effects double)
+
+The single most important gotcha. On resume, the interrupting node **re-runs
+from the top** — so code *before* the interrupt executes again.
+
+```python
+async def node(state):
+    charge_customer()               # SIDE EFFECT
+    d = interrupt({"ask": "ok?"})   # stops here
+    return {"decision": d}
+```
+
+```
+first invoke : charge_customer() runs (1st time), then stops at interrupt
+resume       : node re-runs -> charge_customer() runs AGAIN (2nd time)
+```
+
+### Why the checkpoint does not save you here
+
+A checkpoint stores a node's **returned output**, not its mid-execution local
+variables. `interrupt()` raises a special exception that unwinds the node
+**before it returns** — so the node produced no output, there is nothing to
+checkpoint, and `next` still points at this node. On resume, "not completed" →
+"re-run it". LangGraph cannot serialise a half-executed function; only what you
+`return` into state survives.
+
+> **Only the interrupting node re-runs.** Nodes that already completed and were
+> checkpointed are *not* touched — exactly like the node_b/node_c resume in §2.
+
+### Fix A — put the interrupt first, side effects after
+
+```python
+async def node(state):
+    d = interrupt({"ask": "ok?"})   # stop first
+    charge_customer(d)              # runs once, only after resume
+    return {"decision": d}
+```
+
+Code *after* the interrupt runs only once (on the single resume pass).
+
+### Fix B — split the work into its own upstream node
+
+```python
+async def prepare(state):           # its own node -> its own checkpoint
+    charge_customer()               # side effect
+    return {"prep": expensive()}
+
+async def gate(state):              # interrupt isolated here
+    d = interrupt({"ask": "ok?", "prep": state["prep"]})
+    return {"decision": d}
+# edges: START -> prepare -> gate -> END
+```
+
+Representative counters:
+
+```
+prepare executed : 1   <- checkpointed after returning; not in the re-run set
+gate    executed : 2   <- the interrupting node re-runs (no side effect inside)
+final prep       : from the checkpoint, unchanged
+```
+
+```
+run 1:  prepare ✅ (checkpointed)  →  gate ⏸ (interrupt)
+                                       next = ('gate',)
+resume: prepare NOT re-run (it's before `next`)  →  gate re-runs, completes
+```
+
+**The design principle:** node boundary = checkpoint boundary = re-run
+boundary. To make work "happen once and survive pauses/crashes", give it its
+own node and let it `return`; isolate interrupts (and anything that might
+re-run) into a separate downstream node.
+
+---
+
+## 9. Memory vs Postgres checkpointer
+
+Same API, different survivability. This is the difference between "recovers
+within the process" and "recovers across restarts".
+
+| | `MemorySaver` | `PostgresSaver` |
+|---|---|---|
+| where checkpoints live | in-process dict | database |
+| in-process node failure | ✅ resumable | ✅ resumable |
+| process / worker restart | ❌ checkpoints gone | ✅ survives |
+| resume across HTTP requests / workers | ❌ (may hit a different process) | ✅ |
+| time travel after the fact | ❌ lost on restart | ✅ |
+| durable human-in-the-loop | ❌ | ✅ |
+
+```python
+# selection is config-driven, not a code change:
+if DATABASE_URL:
+    async with AsyncPostgresSaver.from_conn_string(DATABASE_URL) as cp:
+        await cp.setup()
+        graph = build_graph(cp)
+else:
+    graph = build_graph(MemorySaver())
+```
+
+Everything in §2–§8 (resume, time travel, forking, durable interrupts) only
+works **across restarts / across workers** when checkpoints are in a shared
+store. With `MemorySaver` those capabilities exist only while the original
+process stays alive.
+
+---
+
+## 10. Cheat sheet
+
+**Advancing a thread — the `input` argument of `ainvoke(input, config)`:**
+
+| you pass | means |
+|---|---|
+| a state dict | new run from the entry node |
+| `None` | resume an interrupted/crashed thread |
+| `Command(resume=v)` | resume a thread paused at an interrupt |
+| `Command(resume={id: v})` | resume parallel interrupts, matched by id |
+
+**Locating a thread:** always `config = {"configurable": {"thread_id": ...}}`.
+The id is the address; the data is in the checkpoint.
+
+**Key APIs:**
+
+| call | does |
+|---|---|
+| `aget_state(cfg)` | latest snapshot; `.next` = pending nodes, `.values` = state |
+| `aget_state_history(cfg)` | iterate all checkpoints (time travel) |
+| `aupdate_state(cfg, {...})` | write onto a checkpoint → fork a branch |
+| `interrupt(payload)` | pause the node, await external input |
+
+**Reducers (`Annotated[type, fn]`):**
+
+| reducer | effect |
+|---|---|
+| `operator.add` | list concat / append |
+| `{**l, **r}` | dict merge |
+| none (default) | overwrite; **errors on parallel writes** |
+
+**Four rules to keep straight:**
+
+1. Checkpoints are written **between** nodes, storing each node's **returned
+   output** (not mid-node locals).
+2. Resume re-runs **`next` and everything after**; earlier checkpointed nodes
+   are reused.
+3. Parallel writes need a reducer, or LangGraph raises.
+4. The interrupting node **re-runs from the top** — keep side effects out of it
+   (interrupt-first, or split into an upstream node).
+
+**Node boundary = checkpoint boundary = re-run boundary.** Design around it.

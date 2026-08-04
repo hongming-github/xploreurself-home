@@ -30,12 +30,13 @@ export const zh: SiteContent = {
 
   nav: {
     work: "项目",
-    experience: "经历",
-    education: "教育",
+    notes: "笔记",
+    background: "背景",
   },
 
   sections: {
     work: "精选项目",
+    notes: "学习笔记",
     experience: "工作经历",
     education: "教育背景",
     contact: "联系方式",
@@ -92,6 +93,16 @@ export const zh: SiteContent = {
       description:
         "两个人的周末晚饭决策。我的第一个 TypeScript 项目，为学 Next.js 而做。",
       note: "代码未公开",
+    },
+  },
+
+  // Homepage card copy for the Notes section — see content/en.ts's matching
+  // comment. This is the one place the note's summary is translated; the
+  // note body itself stays English only (docs/plan.md decision 4).
+  notes: {
+    "langgraph-durable-execution": {
+      summary:
+        "从底层讲清 LangGraph 如何持久化状态、恢复执行、时间旅行、处理并行写入，以及支持人在回路。",
     },
   },
 

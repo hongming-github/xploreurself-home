@@ -7,11 +7,13 @@ import {
   PROJECT_FACTS,
 } from "./facts";
 import type { Period } from "./facts";
+import { NOTE_SLUGS, loadNote } from "./notes";
 import type {
   ContactItem,
   EducationView,
   ExperienceItem,
   FooterView,
+  NoteRowView,
   Project,
   SiteContent,
 } from "./types";
@@ -67,6 +69,35 @@ export function buildProjects(content: SiteContent): Project[] {
       note: copy.note,
     };
   });
+}
+
+// Zips this locale's card summary (content.notes[slug].summary — see
+// content/types.ts's NoteCopy comment for why that's a separate string
+// from the note's own frontmatter.summary) together with the slug/title/
+// date that live in exactly one place, the note's own
+// content/notes/*.mdx frontmatter (content/notes.ts's loadNote). Not a
+// PROJECT_FACTS-shaped fact table for notes to zip against — a note has no
+// locale-independent numbers/tags/links the way a project does, just a
+// title and a date, and those already live in the one English-only source
+// (the .mdx file) rather than needing a second copy in content/facts.ts.
+//
+// Async, unlike buildProjects/buildExperience/buildEducation above:
+// loadNote does a dynamic import of the compiled MDX module, so this has
+// to be awaited by its one caller (app/[locale]/page.tsx, itself an async
+// Server Component already awaiting `params`).
+export async function buildNotes(content: SiteContent): Promise<NoteRowView[]> {
+  return Promise.all(
+    NOTE_SLUGS.map(async (slug) => {
+      const { frontmatter } = await loadNote(slug);
+      const copy = content.notes[slug];
+      return {
+        slug,
+        title: frontmatter.title,
+        summary: copy.summary,
+        date: frontmatter.date,
+      };
+    }),
+  );
 }
 
 export function buildExperience(content: SiteContent): ExperienceItem[] {

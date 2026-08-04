@@ -2,6 +2,7 @@ import type { MetadataRoute } from "next";
 import { SITE_URL } from "@/content/facts";
 import { LOCALES } from "@/content/ids";
 import { WORK_SLUGS } from "@/content/articles";
+import { NOTE_SLUGS } from "@/content/notes";
 
 // One `lastModified` shared by every entry (computed once, not `new Date()`
 // written out per URL) so none of them report a different build timestamp
@@ -36,5 +37,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
     lastModified,
   }));
 
-  return [...localeEntries, ...articleEntries];
+  // The learning-notes route, same reasoning as articleEntries above and
+  // derived from NOTE_SLUGS rather than hardcoded for the same reason: no
+  // `alternates.languages` (no /zh counterpart to be a translation of).
+  const noteEntries: MetadataRoute.Sitemap = NOTE_SLUGS.map((slug) => ({
+    url: `${SITE_URL}/en/notes/${slug}`,
+    lastModified,
+  }));
+
+  return [...localeEntries, ...articleEntries, ...noteEntries];
 }

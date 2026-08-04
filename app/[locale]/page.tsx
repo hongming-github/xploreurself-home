@@ -8,6 +8,7 @@ import {
   buildEducation,
   buildExperience,
   buildFooter,
+  buildNotes,
   buildProjects,
   personSameAs,
 } from "@/content/site";
@@ -16,6 +17,7 @@ import { Prose } from "@/components/Prose";
 import { ContactLinks } from "@/components/ContactLinks";
 import { SectionHeading } from "@/components/SectionHeading";
 import { ProjectRow } from "@/components/ProjectRow";
+import { NoteRow } from "@/components/NoteRow";
 import { TimelineItem } from "@/components/TimelineItem";
 import { Footer } from "@/components/Footer";
 
@@ -72,6 +74,18 @@ export default async function Home({
   const contact = buildContact();
   const footer = buildFooter(content);
 
+  // Notes section: a note row is a card, same as a ProjectRow, and every
+  // other card on this page already gets a translated summary even when it
+  // links to an English-only destination (redblue/jobagent's deep-dive
+  // links) — see content/types.ts's NoteCopy comment. So this zips
+  // *this locale's* card summary (content.notes) together with the note's
+  // own frontmatter (slug/title/date, content/notes.ts's loadNote) the same
+  // way buildProjects zips content.work with content/facts.ts's
+  // PROJECT_FACTS. Only the note *body*, rendered on its own
+  // English-only route, skips this locale split entirely (docs/plan.md
+  // decision 4 + section 九).
+  const notes = await buildNotes(content);
+
   // JSON-LD Person block — search engines can already read the name and
   // contact links off the rendered page, but structured data is what lets
   // a search engine connect this specific page to *this specific person*
@@ -93,10 +107,22 @@ export default async function Home({
     sameAs: personSameAs(),
   };
 
+  // Three anchors, not four — see content/types.ts's `nav` field comment
+  // for the 375px overflow measurement that forced this. `background` is
+  // deliberately mapped to the `#experience` id (the *last* entry in this
+  // array), not a new `#background` section id: components/Nav.tsx's
+  // end-of-page rule always lights the last item in `items` once the
+  // reader hits the bottom of the page, and pointing that last item at
+  // `experience` — the last section this array actually names — is what
+  // keeps the highlight correct whether the reader is looking at
+  // Experience or has scrolled on into Education below it, without
+  // touching Nav.tsx itself. `education` keeps its own `id`/`scroll-mt-16`
+  // (app/[locale]/page.tsx below) so a direct link to it still works; it
+  // just isn't a nav target any more.
   const navItems = [
     { id: "work", label: content.nav.work },
-    { id: "experience", label: content.nav.experience },
-    { id: "education", label: content.nav.education },
+    { id: "notes", label: content.nav.notes },
+    { id: "experience", label: content.nav.background },
   ];
 
   return (
@@ -164,6 +190,32 @@ export default async function Home({
             <div className="mt-4">
               {projects.map((project) => (
                 <ProjectRow key={project.id} project={project} />
+              ))}
+            </div>
+          </section>
+
+          {/* Notes — the third content type (docs/plan.md's P4 deep-dive
+              pipeline mirrored for short-form learning notes), between work
+              and experience per this phase's brief: differentiation first,
+              résumé after, same ordering rationale docs/plan.md section 三
+              gives for putting work ahead of experience. */}
+          <section id="notes" className="scroll-mt-16">
+            <SectionHeading>{content.sections.notes}</SectionHeading>
+            <div className="mt-4">
+              {notes.map((note) => (
+                <NoteRow
+                  key={note.slug}
+                  note={note}
+                  // Always /en — there is no /zh/notes/* route (see
+                  // content/notes.ts and app/[locale]/notes/[slug]/page.tsx's
+                  // dynamicParams = false). linkLabel reuses
+                  // content.linkLabels.article, the same mechanism
+                  // components/ProjectRow.tsx's deep-dive links already use
+                  // to mark an English-only destination on the Chinese
+                  // page — not a second marker invented for this section.
+                  href={`/en/notes/${note.slug}`}
+                  linkLabel={content.linkLabels.article}
+                />
               ))}
             </div>
           </section>

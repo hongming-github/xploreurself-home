@@ -1,3 +1,4 @@
+import { isValidElement, type ReactNode } from "react";
 import type { MDXComponents } from "mdx/types";
 
 // Typography container for long-form copy. docs/plan.md section 4 requires
@@ -34,6 +35,55 @@ export function Prose({ children }: { children: React.ReactNode }) {
 // selectors with `:where()` (zero specificity) specifically so a plain
 // utility class like `mt-10` on a child can outrank it without a fight.
 
+// --- Heading anchors (no new dependency) --------------------------------
+//
+// content/notes/langgraph-durable-execution.mdx has a table of contents
+// linking to `#1-the-checkpoint-model` etc, but compiled MDX headings get
+// no `id` attribute on their own -- rehype-slug would add one, but this
+// project's dependency budget doesn't stretch to it (remark-gfm was
+// admitted for a load-bearing reason -- next.config.ts's own comment on
+// it -- and that's the one addition, not a precedent for more). So the
+// two heading components below derive the id themselves, the same job
+// rehype-slug would do, just at render time instead of compile time.
+//
+// `textContent` walks a heading's children rather than assuming they're a
+// single string, because a heading can contain inline markup --
+// `### \`checkpoint_writes\` and crash recovery` compiles to an <h3> whose
+// children are [string, <code>, string], not one plain string.
+function textContent(node: ReactNode): string {
+  if (node === null || node === undefined || typeof node === "boolean") {
+    return "";
+  }
+  if (typeof node === "string" || typeof node === "number") {
+    return String(node);
+  }
+  if (Array.isArray(node)) {
+    return node.map(textContent).join("");
+  }
+  if (isValidElement<{ children?: ReactNode }>(node)) {
+    return textContent(node.props.children);
+  }
+  return "";
+}
+
+// Reproduces GitHub's own heading-slug algorithm (lowercase; drop anything
+// that isn't a letter, digit, space, or hyphen; collapse whitespace to a
+// single hyphen; collapse/trim hyphens) -- that's the algorithm the
+// existing `#1-the-checkpoint-model`-style links in
+// content/notes/langgraph-durable-execution.mdx's table of contents were
+// already written against (they were copied from how GitHub renders that
+// same markdown), so matching it exactly is what makes those links work
+// rather than just "some slug or other".
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
 function ProseH2({ children }: { children?: React.ReactNode }) {
   // Same vocabulary as components/SectionHeading.tsx — mono, uppercase,
   // tracked out, full-contrast `text` rather than `text-muted` — for the
@@ -42,21 +92,34 @@ function ProseH2({ children }: { children?: React.ReactNode }) {
   // treatment reserved for dates and tags. "No large size jumps" (the same
   // section) is why this stays at 13px instead of stepping up in size the
   // way a marketing page's <h2> would.
+  //
+  // `id` + `scroll-mt-16`: both article routes (work and notes) render
+  // under components/ArticleNav.tsx's own sticky bar, so an anchor jump
+  // straight to this heading's top edge would land it hidden underneath
+  // that bar — the same trap docs/plan.md section 三 already documents for
+  // the homepage's sticky nav, at the same offset that already works there.
+  const id = slugify(textContent(children));
   return (
-    <h2 className="mt-10 mb-1 font-mono text-[13px] font-medium uppercase tracking-[0.08em] text-text">
+    <h2
+      id={id}
+      className="mt-10 mb-1 scroll-mt-16 font-mono text-[13px] font-medium uppercase tracking-[0.08em] text-text"
+    >
       {children}
     </h2>
   );
 }
 
 function ProseH3({ children }: { children?: React.ReactNode }) {
-  // Neither article currently has a level-3 heading, but the design
-  // system's own component list (docs/plan.md section 4) treats headings
-  // as a shared vocabulary, not something to define lazily the first time
-  // it's needed — so this exists now, one step down from ProseH2 in size
-  // and tracking, same full-contrast colour.
+  // One step down from ProseH2 in size and tracking, same full-contrast
+  // colour, same id + scroll-mt-16 reasoning as ProseH2 above — nothing in
+  // either article links directly to an <h3> today, but a heading earns an
+  // id from being a heading, not from already having an inbound link.
+  const id = slugify(textContent(children));
   return (
-    <h3 className="mt-8 mb-1 font-mono text-xs font-medium uppercase tracking-[0.06em] text-text">
+    <h3
+      id={id}
+      className="mt-8 mb-1 scroll-mt-16 font-mono text-xs font-medium uppercase tracking-[0.06em] text-text"
+    >
       {children}
     </h3>
   );

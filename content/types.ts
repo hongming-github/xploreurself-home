@@ -1,5 +1,6 @@
 import type { ExperienceId, ProjectId } from "./ids";
 import type { ContactIconKey, LinkKey, MetricKey, Sentiment } from "./facts";
+import type { NoteSlug } from "./notes";
 
 // Shape of the page's copy, kept separate from the copy itself
 // (content/en.ts / content/zh.ts). See content/ids.ts and content/facts.ts
@@ -22,6 +23,25 @@ export interface ProjectCopy {
 export interface ExperienceCopy {
   role: string;
   description: string;
+}
+
+/**
+ * Prose for one homepage note row. Mirrors ProjectCopy above, not
+ * content/notes.ts's NoteFrontmatter: a note row on the homepage is a card,
+ * same as a ProjectRow, and every other card's summary on this page is
+ * bilingual shell copy (docs/plan.md decision 4 — the shell, including
+ * project cards, is bilingual; only a deep-dive body is English only).
+ * `ProjectRow` never reads its description off `content/work/*.mdx`
+ * frontmatter for exactly this reason, and a note row shouldn't either.
+ * `frontmatter.summary` still exists and still does real work — it's the
+ * English-only article route's `<meta name="description">` and OG
+ * description (app/[locale]/notes/[slug]/page.tsx and its
+ * opengraph-image.tsx) — this is a second, deliberately separate copy for a
+ * second, deliberately separate audience (the homepage card vs. the
+ * article's own metadata), not a duplication to collapse.
+ */
+export interface NoteCopy {
+  summary: string;
 }
 
 /**
@@ -54,21 +74,48 @@ export interface SiteContent {
   name: string;
   /** Each string is one paragraph of the positioning statement. */
   positioning: string[];
-  /** Short labels for the sticky nav's section anchors. */
+  /** Short labels for the sticky nav's section anchors.
+   *
+   *  Three anchors, not four: a fourth English label ("Work / Notes /
+   *  Experience / Education") overflows 375px — measured
+   *  `document.documentElement.scrollWidth` going 375 → 407, 32px of
+   *  horizontal overflow, which breaks this project's hard "no horizontal
+   *  scroll at 375px" rule. `background` covers BOTH the `#experience`
+   *  section on the page AND `education` below it — `education` keeps its
+   *  own `id`/`scroll-mt-16` (so a direct link to it still works) but is
+   *  no longer a nav target. This isn't just a display shortcut: see
+   *  components/Nav.tsx's end-of-page rule (around line 41 — the highlight
+   *  it derives from `items` picks the *last* item in this list once the
+   *  reader hits the bottom of the page). With `education` still a
+   *  separate nav entry after `experience`, that rule would light
+   *  "Experience" while the reader is looking at Education — the exact
+   *  defect commits dcd0b29 and 0ea6811 (docs/plan.md section 十一)
+   *  already fixed once for the three-section case. Mapping `background`
+   *  to the *same* `#experience` id as the last nav item, rather than
+   *  dropping education's anchor and leaving `experience` as the label,
+   *  means the highlight is accurate whichever of the two sections is on
+   *  screen. */
   nav: {
     work: string;
-    experience: string;
-    education: string;
+    notes: string;
+    background: string;
   };
   /** Longer section headings rendered above each section (SectionHeading) —
    *  distinct from `nav` because the Chinese copy uses different phrasing
-   *  for the anchor label ("项目") than for the heading ("精选项目"). `contact`
-   *  has no counterpart in `nav`: docs/plan.md is explicit that the contact
-   *  block gets a heading but not a sticky-nav anchor, since it sits above
-   *  the nav and is already on screen at every scroll position — an anchor
-   *  to something already visible has nothing to jump to. */
+   *  for the anchor label ("项目") than for the heading ("精选项目"), and
+   *  because `nav.background` merges two headings ("Experience" /
+   *  "Education") that stay separate here — the merge is a nav-anchor
+   *  simplification only, not a page restructuring. `contact` has no
+   *  counterpart in `nav`: docs/plan.md is explicit that the contact block
+   *  gets a heading but not a sticky-nav anchor, since it sits above the
+   *  nav and is already on screen at every scroll position — an anchor to
+   *  something already visible has nothing to jump to. `notes` is the
+   *  third content type's section heading, added alongside `work` in this
+   *  phase — its nav label lives in `nav.notes` above (same word, matching
+   *  every other section here). */
   sections: {
     work: string;
+    notes: string;
     experience: string;
     education: string;
     contact: string;
@@ -91,6 +138,10 @@ export interface SiteContent {
   /** Keyed by content/ids.ts's PROJECT_IDS. Missing an entry for any id is
    *  a `tsc` error, not a page that quietly ships one project short. */
   work: Record<ProjectId, ProjectCopy>;
+  /** Keyed by content/notes.ts's NOTE_SLUGS — same guarantee, one level
+   *  down: omitting a note's card summary in either locale file is a `tsc`
+   *  error, the same way omitting a project's is. */
+  notes: Record<NoteSlug, NoteCopy>;
   /** Keyed by content/ids.ts's EXPERIENCE_IDS — same guarantee. */
   experience: Record<ExperienceId, ExperienceCopy>;
   education: EducationItem[];
@@ -103,11 +154,15 @@ export interface SiteContent {
 // --- Render-ready view types -------------------------------------------
 //
 // These are what the existing components (ProjectRow, TimelineItem,
-// MetricPair, LinkRow, Footer) actually take as props. content/site.ts
-// builds them by zipping a SiteContent (locale prose) together with
-// content/facts.ts (locale-independent numbers and URLs) — components never
-// import content/facts.ts directly and don't need to know the content is
-// split at all.
+// MetricPair, LinkRow, Footer, NoteRow) actually take as props.
+// content/site.ts builds them by zipping a SiteContent (locale prose)
+// together with content/facts.ts (locale-independent numbers and URLs) —
+// components never import content/facts.ts directly and don't need to know
+// the content is split at all. NoteRowView is the one exception to "zipped
+// from facts.ts": a note has no facts.ts entry, so content/site.ts's
+// buildNotes() zips SiteContent's `notes` (the bilingual card summary)
+// together with content/notes.ts's loadNote() (slug/title/date) instead —
+// see that function's own comment.
 
 export interface Metric {
   label: string;
@@ -180,4 +235,19 @@ export interface FooterView {
   copyright: string;
   sourceLabel: string;
   sourceHref: string;
+}
+
+/** Render-ready homepage notes-section row — components/NoteRow.tsx's prop
+ *  type. `slug` is what the View Transition name is keyed off (matching
+ *  app/[locale]/notes/[slug]/page.tsx's <h1>); `title` and `date` come from
+ *  the note's own content/notes/*.mdx frontmatter (there is exactly one
+ *  English-language copy of those, same as a project's `name`); `summary`
+ *  comes from *this* locale's `SiteContent.notes` — see NoteCopy's comment
+ *  above for why that's a separate string from frontmatter.summary rather
+ *  than the same one reused. */
+export interface NoteRowView {
+  slug: string;
+  title: string;
+  summary: string;
+  date: string;
 }

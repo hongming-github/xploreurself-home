@@ -30,12 +30,13 @@ export const en: SiteContent = {
 
   nav: {
     work: "Work",
-    experience: "Experience",
-    education: "Education",
+    notes: "Notes",
+    background: "Background",
   },
 
   sections: {
     work: "Selected Work",
+    notes: "Notes",
     experience: "Experience",
     education: "Education",
     contact: "Contact",
@@ -89,6 +90,18 @@ export const en: SiteContent = {
       description:
         "Weekend dinner decisions for two people. My first TypeScript project — built to learn Next.js.",
       note: "Code private.",
+    },
+  },
+
+  // Homepage card copy for the Notes section — see content/types.ts's
+  // NoteCopy comment for why this is a separate copy from
+  // content/notes/*.mdx's frontmatter.summary rather than the same string
+  // reused. Kept identical to the frontmatter sentence for now (the two are
+  // allowed to diverge later, since they serve different audiences).
+  notes: {
+    "langgraph-durable-execution": {
+      summary:
+        "A ground-up explanation of how LangGraph persists state, resumes work, travels through time, handles parallel writes, and supports human-in-the-loop.",
     },
   },
 
