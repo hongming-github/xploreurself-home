@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Moon, Sun, SunMoon } from "lucide-react";
+import { Monitor, Moon, Sun } from "lucide-react";
 import { THEME_STORAGE_KEY, type ThemeMode } from "@/lib/theme";
 
 // Why this is a Client Component: it reads and writes localStorage and
@@ -22,9 +22,15 @@ function applyTheme(mode: ThemeMode) {
   }
 }
 
+// "System" uses a monitor rather than lucide's SunMoon. SunMoon is a sun
+// with a crescent tucked into it, which at this size is very close to the
+// plain Sun next to it — two adjacent buttons a reader can't tell apart is
+// a control that has stopped doing its job. A screen is the conventional
+// symbol for "whatever the machine is set to", and its silhouette shares
+// nothing with a sun or a moon, so the three states stay distinct at 14px.
 const OPTIONS: { mode: ThemeMode; label: string; Icon: typeof Sun }[] = [
   { mode: "light", label: "Light theme", Icon: Sun },
-  { mode: "system", label: "Match system theme", Icon: SunMoon },
+  { mode: "system", label: "Match system theme", Icon: Monitor },
   { mode: "dark", label: "Dark theme", Icon: Moon },
 ];
 
